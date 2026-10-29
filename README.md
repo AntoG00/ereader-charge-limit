@@ -3,26 +3,37 @@
 Stops a Kobo Sage charging at 80% and runs it from the charger instead, like
 AlDente on a Mac. It switches charging back on at 75%.
 
-**Untested on hardware.** This is built from Kobo's published Sage kernel
-source ([kobolabs/b300-sage](https://github.com/kobolabs/b300-sage)), not
-from a real device. Do the manual test below before installing the package.
+**Untested on hardware.** Do the manual test below before installing the
+package.
 
 ## How it works
 
-The Sage's power chip is a Ricoh RC5T619. Register `0xB3` (CHGCTL1) bits 0–1
-turn charging on and off. Kobo's own driver clears them when the battery is
-too hot or cold and keeps the reader running from USB, which is the same mode
-we want.
+Sages ship with one of two power chips, and `kobo-chg` detects which one at
+runtime:
+
+- **ROHM BD71828**, found on a retail Sage (`2-004b`, driver
+  `bd71827-power`). Register `0x6F` (CHG_EN) bit 0 turns charging on and off.
+  Mainline Linux's driver for this chip uses the same bit for its
+  "inhibit-charge" mode, where the device runs from the charger. Kobo hasn't
+  published the kernel for this version, so the register map comes from
+  mainline Linux (`rohm-bd71828.h`).
+- **Ricoh RC5T619**, the only chip in Kobo's published Sage kernel source
+  ([kobolabs/b300-sage](https://github.com/kobolabs/b300-sage)). Register
+  `0xB3` (CHGCTL1) bits 0–1 turn charging on and off. Kobo's own driver clears
+  them when the battery is too hot or cold and keeps the reader running from
+  USB, which is the same mode we want.
 
 - `kobo-chg` is a small static binary: `status`, `on`, `off`. It talks to the
-  chip over `/dev/i2c-N`, finding the bus by the driver's name in sysfs.
+  chip over `/dev/i2c-N`, finding the bus and the chip by the driver's name in
+  sysfs.
 - `chargelimitd.sh` checks every 30 s. It turns charging off at `LIMIT`, on at
   `RESUME`, and leaves it alone in between.
 - A udev rule starts the daemon at boot and on charger plug/unplug.
 
-### The register-bank hazard
+### The register-bank hazard (Ricoh only)
 
-The chip has two register banks behind a select register (`0xFF`). The stock
+The BD71828 has a single register page, so this only applies to the Ricoh.
+The Ricoh has two register banks behind a select register (`0xFF`). The stock
 driver remembers which bank it last selected and uses bank 1 at runtime for
 fuel-gauge upkeep. A plain write to `0xB3` while bank 1 is selected would
 corrupt a fuel-gauge setting, and changing the bank ourselves would confuse the
@@ -37,7 +48,10 @@ with an `I2C_RDWR` error and changes nothing.
 ## Manual test first
 
 You need a root shell on the reader, for example SSH from NiLuJe's kobo-stuff
-package (MobileRead forums).
+package (MobileRead forums). Without one, on firmware 4.x, install
+[NickelMenu](https://pgaskin.net/NickelMenu/) and copy
+[nickelmenu/chargelimit-test](nickelmenu/chargelimit-test) to `.adds/nm/`. It
+adds menu items that run the same commands and show the output on screen.
 
 1. Get `KoboRoot.tgz` (see Building) and pull the helper out of it, without
    installing the package:
@@ -48,12 +62,11 @@ package (MobileRead forums).
    `/mnt/onboard/kobo-chg` on the reader.
 2. Check the chip is found and the status makes sense:
    ```sh
-   ls /sys/bus/i2c/devices/                    # look for N-0032 or similar
-   cat /sys/bus/i2c/devices/*/name             # one should say ricoh619
+   cat /sys/bus/i2c/devices/*/name             # one should say bd71828 or ricoh619
    /mnt/onboard/kobo-chg status
    ```
-   Unplugged, expect `plugged=0`. Plugged in and charging, expect
-   `plugged=1 charging_enabled=1`.
+   Expect `pmic=bd71828` or `pmic=ricoh619`. Unplugged, expect `plugged=0`.
+   Plugged in and charging, expect `plugged=1 charging_enabled=1`.
 3. Plugged in, run `/mnt/onboard/kobo-chg off`, then:
    ```sh
    /mnt/onboard/kobo-chg status
@@ -101,8 +114,13 @@ charging back on.
 - Uninstall: create an empty file `.adds/chargelimit/uninstall` on the USB
   drive. The daemon turns charging back on and deletes its own files and udev
   rule. (`KoboRoot.tgz` can add files but not remove them.)
-- If something goes wrong, rebooting with the cable unplugged resets the chip;
-  the stock driver turns charging on again at boot.
+- On the Ricoh, a reboot always turns charging back on, because the stock
+  driver switches it on while starting up (`ricoh61x_init_charger`). On the
+  BD71828 this isn't known: mainline Linux's driver never sets CHG_EN at
+  startup, and Kobo's driver isn't public. Use `kobo-chg on` to be sure.
+  With the package installed, the daemon also turns charging on whenever the
+  charger is unplugged or `ENABLED=0`. To get stock behaviour back for good,
+  use `ENABLED=0` or the uninstall file.
 
 ## Known gaps
 
@@ -117,9 +135,9 @@ charging back on.
 - **Driver re-enables.** The stock driver turns charging back on after some
   events: plug-in, temperature recovery, low-battery alerts. The daemon undoes
   this within `POLL` seconds.
-- **Races with the driver.** `kobo-chg` detects the driver writing `0xB3` or
-  switching banks mid-update and corrects for it, but it can't take the
-  driver's lock. A kernel module could, if this turns out to matter.
+- **Races with the driver.** `kobo-chg` detects the driver writing the
+  charge-enable register (or, on the Ricoh, switching banks) mid-update and
+  corrects for it, but it can't take the driver's lock. A kernel module could, if this turns out to matter.
 - **Nickel's battery icon** may show "not charging" while plugged in.
 - **The boot hook** uses udev's `loop0` event like kfmon does. If that doesn't
   fire on your firmware, the plug/unplug rule still starts the daemon the first
