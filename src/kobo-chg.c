@@ -30,6 +30,14 @@
  * held for the whole transfer, so the bank we read is the bank the access
  * used. If it was bank 1 we undo the access and retry. The BD71828 has a
  * single register page, so its transfers skip the BANKSEL messages.
+ *
+ * Direct register writes are the fallback. Kobo's bd71827-power driver
+ * exposes the BD71828's CHG_EN bit as CHARGING_ATTR (the same file Kobo's
+ * other BD7182x readers have), and "on"/"off" write that file whenever it
+ * exists, so the driver does the register update under its own lock. The
+ * register is read back either way, and written directly if the bit didn't
+ * follow. The published Ricoh driver has no such file, so on that chip the
+ * file is only used if a newer driver adds it.
  */
 #include <dirent.h>
 #include <errno.h>
@@ -44,6 +52,7 @@
 #include <unistd.h>
 
 #define REG_BANKSEL 0xFF
+#define CHARGING_ATTR "/sys/class/power_supply/battery/charging"
 
 #define RETRIES 20
 #define RETRY_DELAY_US 50000
@@ -213,9 +222,41 @@ static uint8_t with_charging(uint8_t v, int enable)
 	return enable ? (v | pmic->en_bits) : (v & ~pmic->en_bits);
 }
 
-/* Each pass re-reads the register, so a pass that finds nothing to do is the verification. */
+static int write_charging_attr(int enable)
+{
+	int afd = open(CHARGING_ATTR, O_WRONLY);
+
+	if (afd < 0) {
+		perror(CHARGING_ATTR);
+		return -1;
+	}
+	ssize_t n = write(afd, enable ? "1" : "0", 1);
+	close(afd);
+	if (n != 1) {
+		perror(CHARGING_ATTR);
+		return -1;
+	}
+	return 0;
+}
+
+/*
+ * Prefer the driver's file; the register is read back either way. In the
+ * direct-write loop each pass re-reads the register, so a pass that finds
+ * nothing to do is the verification.
+ */
 static int set_charging(int enable)
 {
+	if (access(CHARGING_ATTR, F_OK) == 0) {
+		uint8_t cur;
+
+		if (write_charging_attr(enable) == 0 &&
+		    read_reg_retry(pmic->ctl_reg, &cur) == 0 &&
+		    with_charging(cur, enable) == cur)
+			return 0;
+		fprintf(stderr, "%s did not take effect, writing the register directly\n",
+			CHARGING_ATTR);
+	}
+
 	for (int i = 0; i < RETRIES; i++) {
 		uint8_t cur, before;
 

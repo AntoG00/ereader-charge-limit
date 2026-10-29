@@ -3,7 +3,17 @@
 Stops a Kobo Sage charging at 80% and runs it from the charger instead, like
 AlDente on a Mac. It switches charging back on at 75%.
 
-**Untested on hardware.** Do the manual test below before installing the
+## Status
+
+| | ROHM BD71828 | Ricoh RC5T619 |
+|---|---|---|
+| `kobo-chg` on/off/status (direct register) | Works (retail Sage, firmware 4.x) | Untested |
+| Driver's `battery/charging` file | Present, tracks CHG_EN, writing `1`/`0` turns charging on/off | Not in the published driver; used if a newer one adds it |
+| Runs from the charger with charging off | Yes, battery current ~0 mA, level held for 15 min | Untested |
+| Daemon | Works: switched charging off again within 30 s after a manual re-enable | Untested |
+| Boot hook | Daemon was running after the install reboot; whether `loop0` or a plug event started it isn't checked | Untested |
+
+On a new reader or chip, do the manual test below before installing the
 package.
 
 ## How it works
@@ -16,7 +26,11 @@ runtime:
   Mainline Linux's driver for this chip uses the same bit for its
   "inhibit-charge" mode, where the device runs from the charger. Kobo hasn't
   published the kernel for this version, so the register map comes from
-  mainline Linux (`rohm-bd71828.h`).
+  mainline Linux (`rohm-bd71828.h`). Kobo's driver also exposes this bit as
+  `/sys/class/power_supply/battery/charging`. The
+  [Clara BW KOReader plugin](https://github.com/jopidovba-a11y/Charge-Limit-For-Kobo-Clara-BW-Koreader-Plugin)
+  uses the same file (under `bd71827_bat/` on that model), and users report it
+  on other Kobos with the same chip family.
 - **Ricoh RC5T619**, the only chip in Kobo's published Sage kernel source
   ([kobolabs/b300-sage](https://github.com/kobolabs/b300-sage)). Register
   `0xB3` (CHGCTL1) bits 0–1 turn charging on and off. Kobo's own driver clears
@@ -25,7 +39,11 @@ runtime:
 
 - `kobo-chg` is a small static binary: `status`, `on`, `off`. It talks to the
   chip over `/dev/i2c-N`, finding the bus and the chip by the driver's name in
-  sysfs.
+  sysfs. On either chip, `on`/`off` write the driver's
+  `/sys/class/power_supply/battery/charging` file when it exists, so the
+  driver makes the change under its own lock, then read the register back.
+  They write the register directly when the file is missing or the bit didn't
+  follow.
 - `chargelimitd.sh` checks every 30 s. It turns charging off at `LIMIT`, on at
   `RESUME`, and leaves it alone in between.
 - A udev rule starts the daemon at boot and on charger plug/unplug.
@@ -135,10 +153,13 @@ charging back on.
 - **Driver re-enables.** The stock driver turns charging back on after some
   events: plug-in, temperature recovery, low-battery alerts. The daemon undoes
   this within `POLL` seconds.
-- **Races with the driver.** `kobo-chg` detects the driver writing the
-  charge-enable register (or, on the Ricoh, switching banks) mid-update and
-  corrects for it, but it can't take the driver's lock. A kernel module could, if this turns out to matter.
-- **Nickel's battery icon** may show "not charging" while plugged in.
+- **Races with the driver.** The driver's `charging` file avoids them. For
+  direct register writes (when the file is missing or didn't take effect), `kobo-chg` detects the driver writing the charge-enable register
+  (or, on the Ricoh, switching banks) mid-update and corrects for it, but it
+  can't take the driver's lock. A kernel module could, if this turns out to
+  matter.
+- **Nickel's battery icon** shows no charging symbol while charging is off,
+  even though the charger is powering the reader.
 - **The boot hook** uses udev's `loop0` event like kfmon does. If that doesn't
   fire on your firmware, the plug/unplug rule still starts the daemon the first
   time you connect a charger.
