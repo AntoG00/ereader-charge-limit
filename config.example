@@ -1,0 +1,17 @@
+# Copy to .adds/chargelimit/config on the reader's USB drive.
+# Changes are picked up within POLL seconds, no reboot needed.
+
+# 0 hands charging back to the stock driver (the daemon keeps running).
+ENABLED=1
+
+# Stop charging at LIMIT %, start again once the battery drops to RESUME %.
+LIMIT=80
+RESUME=75
+
+# Seconds between checks while the reader is awake.
+POLL=30
+
+# Experimental: while charging below LIMIT, set an RTC wake alarm so a
+# sleeping reader wakes up to check. See the README before enabling.
+WAKE_WHILE_CHARGING=0
+WAKE_INTERVAL=600

@@ -1,0 +1,5 @@
+# kobo-chargelimit
+# Start at boot: loop0 is set up once per boot (the same hook kfmon uses).
+KERNEL=="loop0", RUN+="/usr/local/chargelimit/launch.sh"
+# Also start on charger plug/unplug, in case the boot hook didn't fire.
+SUBSYSTEM=="power_supply", ACTION=="change", RUN+="/usr/local/chargelimit/launch.sh"
