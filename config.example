@@ -1,6 +1,11 @@
 # Copy to .adds/chargelimit/config on the reader's USB drive.
 # Changes are picked up within POLL seconds, no reboot needed.
 
+# boot: limit from every boot. manual: the reader starts as stock, and the
+# limiter only runs after "Start charge limit" in NickelMenu, until "Stop
+# charge limit" or the next reboot. manual needs NickelMenu.
+START=boot
+
 # 0 hands charging back to the stock driver (the daemon keeps running).
 ENABLED=1
 

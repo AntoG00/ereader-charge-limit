@@ -1,12 +1,22 @@
 /*
- * kobo-chg: read or toggle the Kobo Sage's charger-enable bit(s) on its
- * PMIC from userspace, while the stock driver stays bound to the chip.
+ * kobo-chg: read or toggle a Kobo's charge enable from userspace, while the
+ * stock driver stays bound to the PMIC.
  *
- *   kobo-chg status   prints shell-evaluable key=value lines
+ *   kobo-chg status   prints shell-evaluable key=value lines; exits 1 if
+ *                     this reader has no supported charge control
  *   kobo-chg on       allow charging (stock behaviour)
  *   kobo-chg off      stop charging; the device keeps running from USB
  *
- * Sages ship with one of two PMICs, found by the name in sysfs:
+ * Two ways to control charging, chosen by what the reader offers:
+ *
+ *   sysfs     the battery power_supply has a "charging" file (Kobo's
+ *             bd71827-power driver, on BD7182x readers). The driver does
+ *             the register update under its own lock.
+ *   register  a known PMIC on I2C, found by its driver's name. Used when
+ *             there's no "charging" file, or when writing it didn't take.
+ *
+ * Battery level, voltage and "plugged" always come from the power_supply
+ * class, so they work on any reader. Known PMICs:
  *
  * ROHM BD71828 (seen on a retail Sage; registers from mainline Linux's
  * rohm-bd71828.h and bd71828-power.c, which maps "inhibit-charge" to
@@ -30,14 +40,6 @@
  * held for the whole transfer, so the bank we read is the bank the access
  * used. If it was bank 1 we undo the access and retry. The BD71828 has a
  * single register page, so its transfers skip the BANKSEL messages.
- *
- * Direct register writes are the fallback. Kobo's bd71827-power driver
- * exposes the BD71828's CHG_EN bit as CHARGING_ATTR (the same file Kobo's
- * other BD7182x readers have), and "on"/"off" write that file whenever it
- * exists, so the driver does the register update under its own lock. The
- * register is read back either way, and written directly if the bit didn't
- * follow. The published Ricoh driver has no such file, so on that chip the
- * file is only used if a newer driver adds it.
  */
 #include <dirent.h>
 #include <errno.h>
@@ -52,7 +54,7 @@
 #include <unistd.h>
 
 #define REG_BANKSEL 0xFF
-#define CHARGING_ATTR "/sys/class/power_supply/battery/charging"
+#define SUPPLIES "/sys/class/power_supply"
 
 #define RETRIES 20
 #define RETRY_DELAY_US 50000
@@ -61,7 +63,8 @@ struct pmic {
 	const char *name;	/* i2c client name in sysfs */
 	uint8_t ctl_reg;	/* register holding the charge-enable bits */
 	uint8_t en_bits;
-	uint8_t dcin_reg;	/* charger present when (reg & dcin_mask) != 0 */
+	uint8_t dcin_reg;	/* charger present when (reg & dcin_mask) != 0;
+				   reported for comparison with sysfs "plugged" */
 	uint8_t dcin_mask;
 	uint8_t state_reg;	/* charge state = reg & state_mask */
 	uint8_t state_mask;
@@ -73,9 +76,13 @@ static const struct pmic pmics[] = {
 	{ "ricoh619", 0xB3, 0x03, 0xBD, 0xC0, 0xBD, 0x1F, 1 },
 };
 
-static const struct pmic *pmic;
+static const struct pmic *pmic;	/* NULL if no known PMIC */
 static int fd;
 static uint16_t addr;
+
+static char battery[256];	/* battery power_supply dir, "" if none */
+static char charging_attr[300];	/* its "charging" file, "" if none */
+static int plugged;		/* some other power_supply is online */
 
 static uint8_t reg_banksel = REG_BANKSEL;
 
@@ -83,17 +90,15 @@ static uint8_t reg_banksel = REG_BANKSEL;
  * Find the PMIC on the I2C bus by the name its driver binds to. Names must
  * match exactly: the BD71828 also has a "bd71828-otp" client.
  */
-static int open_pmic(void)
+static void open_pmic(void)
 {
 	DIR *dir = opendir("/sys/bus/i2c/devices");
 	struct dirent *de;
 	int bus = -1;
 	unsigned int a;
 
-	if (!dir) {
-		perror("opendir /sys/bus/i2c/devices");
-		return -1;
-	}
+	if (!dir)
+		return;
 	while (bus < 0 && (de = readdir(dir))) {
 		char path[300], name[32] = "";
 		FILE *f;
@@ -118,19 +123,79 @@ static int open_pmic(void)
 		fclose(f);
 	}
 	closedir(dir);
-	if (bus < 0) {
-		fprintf(stderr, "no bd71828 or ricoh619 PMIC under /sys/bus/i2c/devices\n");
-		return -1;
-	}
+	if (bus < 0)
+		return;
 
 	char dev[32];
 	snprintf(dev, sizeof(dev), "/dev/i2c-%d", bus);
 	fd = open(dev, O_RDWR);
 	if (fd < 0) {
 		perror(dev);
-		return -1;
+		pmic = NULL;
 	}
+}
+
+/* Read the first line of a sysfs file, without the newline. */
+static int read_line(const char *path, char *buf, size_t size)
+{
+	FILE *f = fopen(path, "r");
+	int ok;
+
+	if (!f)
+		return -1;
+	ok = fgets(buf, size, f) != NULL;
+	fclose(f);
+	if (!ok)
+		return -1;
+	buf[strcspn(buf, "\n")] = '\0';
 	return 0;
+}
+
+/*
+ * Pick the battery power_supply and work out whether a charger is online.
+ * A Battery-type supply with a "charging" file wins over one without (a
+ * Sage PowerCover, for one, adds its own battery). Any other supply that
+ * reports online=1 means the reader is plugged in.
+ */
+static void find_supplies(void)
+{
+	DIR *dir = opendir(SUPPLIES);
+	struct dirent *de;
+
+	if (!dir)
+		return;
+	while ((de = readdir(dir))) {
+		char path[300], val[32];
+
+		if (de->d_name[0] == '.')
+			continue;
+		snprintf(path, sizeof(path), SUPPLIES "/%s/type", de->d_name);
+		if (read_line(path, val, sizeof(val)) < 0)
+			continue;
+		if (strcmp(val, "Battery") != 0) {
+			snprintf(path, sizeof(path), SUPPLIES "/%s/online", de->d_name);
+			if (read_line(path, val, sizeof(val)) == 0 && strcmp(val, "1") == 0)
+				plugged = 1;
+			continue;
+		}
+		snprintf(path, sizeof(path), SUPPLIES "/%s/charging", de->d_name);
+		if (access(path, F_OK) == 0 && !charging_attr[0]) {
+			snprintf(battery, sizeof(battery), SUPPLIES "/%s", de->d_name);
+			snprintf(charging_attr, sizeof(charging_attr), "%s", path);
+		} else if (!battery[0]) {
+			snprintf(battery, sizeof(battery), SUPPLIES "/%s", de->d_name);
+		}
+	}
+	closedir(dir);
+}
+
+static const char *method(void)
+{
+	if (!battery[0])
+		return "none";
+	if (charging_attr[0])
+		return "sysfs";
+	return pmic ? "register" : "none";
 }
 
 /*
@@ -224,37 +289,47 @@ static uint8_t with_charging(uint8_t v, int enable)
 
 static int write_charging_attr(int enable)
 {
-	int afd = open(CHARGING_ATTR, O_WRONLY);
+	int afd = open(charging_attr, O_WRONLY);
 
 	if (afd < 0) {
-		perror(CHARGING_ATTR);
+		perror(charging_attr);
 		return -1;
 	}
 	ssize_t n = write(afd, enable ? "1" : "0", 1);
 	close(afd);
 	if (n != 1) {
-		perror(CHARGING_ATTR);
+		perror(charging_attr);
 		return -1;
 	}
 	return 0;
 }
 
+/* The "charging" file's value: 1, 0, or -1 if unreadable. */
+static int read_charging_attr(void)
+{
+	char val[8];
+
+	if (read_line(charging_attr, val, sizeof(val)) < 0)
+		return -1;
+	return strcmp(val, "0") != 0;
+}
+
 /*
- * Prefer the driver's file; the register is read back either way. In the
- * direct-write loop each pass re-reads the register, so a pass that finds
- * nothing to do is the verification.
+ * Prefer the driver's file and read it back. In the direct-write loop each
+ * pass re-reads the register, so a pass that finds nothing to do is the
+ * verification.
  */
 static int set_charging(int enable)
 {
-	if (access(CHARGING_ATTR, F_OK) == 0) {
-		uint8_t cur;
-
-		if (write_charging_attr(enable) == 0 &&
-		    read_reg_retry(pmic->ctl_reg, &cur) == 0 &&
-		    with_charging(cur, enable) == cur)
+	if (charging_attr[0]) {
+		if (write_charging_attr(enable) == 0 && read_charging_attr() == enable)
 			return 0;
+		if (!pmic) {
+			fprintf(stderr, "%s did not take effect\n", charging_attr);
+			return -1;
+		}
 		fprintf(stderr, "%s did not take effect, writing the register directly\n",
-			CHARGING_ATTR);
+			charging_attr);
 	}
 
 	for (int i = 0; i < RETRIES; i++) {
@@ -284,20 +359,48 @@ static int set_charging(int enable)
 	return -1;
 }
 
+/*
+ * Example on a BD71828 Sage:
+ *   method=sysfs pmic=bd71828 battery=/sys/class/power_supply/battery
+ *   charging_enabled=1 plugged=1 capacity=84 voltage_uv=4119300
+ *   ctl=0x01 pmic_plugged=1 charge_state=0x0e
+ * (one key per line). The last three only appear with a known PMIC.
+ */
 static int print_status(void)
 {
-	uint8_t ctl, dcin, state;
+	char path[300], val[32];
+	int enabled = -1;
 
-	if (read_reg_retry(pmic->ctl_reg, &ctl) < 0 ||
-	    read_reg_retry(pmic->dcin_reg, &dcin) < 0 ||
-	    read_reg_retry(pmic->state_reg, &state) < 0)
-		return -1;
-	printf("pmic=%s\n", pmic->name);
-	printf("ctl=0x%02x\n", ctl);
-	printf("charging_enabled=%d\n", (ctl & pmic->en_bits) == pmic->en_bits);
-	printf("plugged=%d\n", (dcin & pmic->dcin_mask) != 0);
-	printf("charge_state=0x%02x\n", state & pmic->state_mask);
-	return 0;
+	printf("method=%s\n", method());
+	printf("pmic=%s\n", pmic ? pmic->name : "none");
+	printf("battery=%s\n", battery);
+	printf("plugged=%d\n", plugged);
+	if (battery[0]) {
+		snprintf(path, sizeof(path), "%s/capacity", battery);
+		if (read_line(path, val, sizeof(val)) == 0)
+			printf("capacity=%s\n", val);
+		snprintf(path, sizeof(path), "%s/voltage_now", battery);
+		if (read_line(path, val, sizeof(val)) == 0)
+			printf("voltage_uv=%s\n", val);
+	}
+	if (charging_attr[0])
+		enabled = read_charging_attr();
+	if (pmic) {
+		uint8_t ctl, dcin, state;
+
+		if (read_reg_retry(pmic->ctl_reg, &ctl) < 0 ||
+		    read_reg_retry(pmic->dcin_reg, &dcin) < 0 ||
+		    read_reg_retry(pmic->state_reg, &state) < 0)
+			return -1;
+		if (!charging_attr[0])
+			enabled = (ctl & pmic->en_bits) == pmic->en_bits;
+		printf("ctl=0x%02x\n", ctl);
+		printf("pmic_plugged=%d\n", (dcin & pmic->dcin_mask) != 0);
+		printf("charge_state=0x%02x\n", state & pmic->state_mask);
+	}
+	if (enabled >= 0)
+		printf("charging_enabled=%d\n", enabled);
+	return strcmp(method(), "none") == 0 || enabled < 0 ? -1 : 0;
 }
 
 int main(int argc, char **argv)
@@ -306,16 +409,18 @@ int main(int argc, char **argv)
 		fprintf(stderr, "usage: %s status|on|off\n", argv[0]);
 		return 2;
 	}
-	if (open_pmic() < 0)
-		return 1;
+	find_supplies();
+	open_pmic();
 
 	if (strcmp(argv[1], "status") == 0)
 		return print_status() < 0;
-	if (strcmp(argv[1], "on") == 0)
-		return set_charging(1) < 0;
-	if (strcmp(argv[1], "off") == 0)
-		return set_charging(0) < 0;
-
-	fprintf(stderr, "usage: %s status|on|off\n", argv[0]);
-	return 2;
+	if (strcmp(argv[1], "on") != 0 && strcmp(argv[1], "off") != 0) {
+		fprintf(stderr, "usage: %s status|on|off\n", argv[0]);
+		return 2;
+	}
+	if (strcmp(method(), "none") == 0) {
+		fprintf(stderr, "no supported charge control on this reader\n");
+		return 1;
+	}
+	return set_charging(strcmp(argv[1], "on") == 0) < 0;
 }
