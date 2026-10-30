@@ -55,6 +55,13 @@
 
 #define REG_BANKSEL 0xFF
 #define SUPPLIES "/sys/class/power_supply"
+/*
+ * SUPPLIES + "/" + a name of up to 255 bytes + NUL, and room for the longest
+ * attribute suffix ("/voltage_now"). Sized so gcc can prove snprintf never
+ * truncates.
+ */
+#define SUPPLY_DIR_LEN (sizeof(SUPPLIES) + 1 + 255)
+#define SUPPLY_PATH_LEN (SUPPLY_DIR_LEN + 16)
 
 #define RETRIES 20
 #define RETRY_DELAY_US 50000
@@ -80,8 +87,8 @@ static const struct pmic *pmic;	/* NULL if no known PMIC */
 static int fd;
 static uint16_t addr;
 
-static char battery[256];	/* battery power_supply dir, "" if none */
-static char charging_attr[300];	/* its "charging" file, "" if none */
+static char battery[SUPPLY_DIR_LEN];	/* battery power_supply dir, "" if none */
+static char charging_attr[SUPPLY_PATH_LEN];	/* its "charging" file, "" if none */
 static int plugged;		/* some other power_supply is online */
 
 static uint8_t reg_banksel = REG_BANKSEL;
@@ -165,7 +172,7 @@ static void find_supplies(void)
 	if (!dir)
 		return;
 	while ((de = readdir(dir))) {
-		char path[300], val[32];
+		char path[SUPPLY_PATH_LEN], val[32];
 
 		if (de->d_name[0] == '.')
 			continue;
@@ -368,7 +375,7 @@ static int set_charging(int enable)
  */
 static int print_status(void)
 {
-	char path[300], val[32];
+	char path[SUPPLY_PATH_LEN], val[32];
 	int enabled = -1;
 
 	printf("method=%s\n", method());
