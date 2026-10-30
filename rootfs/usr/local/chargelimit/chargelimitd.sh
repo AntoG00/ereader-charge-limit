@@ -16,8 +16,8 @@ ENABLED=1
 LIMIT=80
 RESUME=75
 POLL=30
-WAKE_WHILE_CHARGING=0
-WAKE_INTERVAL=600
+WAKE_WHILE_CHARGING=1
+WAKE_INTERVAL=120
 
 log() {
 	[ -f "$LOG" ] && [ "$(wc -c < "$LOG")" -gt 65536 ] && : > "$LOG"
@@ -97,11 +97,14 @@ while :; do
 		"$CHG" "$action" 2>>"$LOG" && log "charging $action (battery ${cap}%, plugged=$plugged)"
 	fi
 
-	# Experimental. The PMIC keeps charging while the reader sleeps and this
-	# loop can't run, so a wake alarm brings it back to check. Only set when no
-	# alarm is pending, to leave Nickel's own alarms alone.
+	# The PMIC keeps charging while the reader sleeps and this loop can't run,
+	# so while we're letting it charge towards LIMIT, a wake alarm brings the
+	# reader back to check (the wake-up's power_supply event makes launch.sh
+	# signal us). With charging off the battery can't climb, so no alarm is
+	# needed. Only set when no alarm is pending, to leave Nickel's own alarms
+	# alone.
 	if [ "$WAKE_WHILE_CHARGING" = 1 ] && [ "$ENABLED" = 1 ] && [ "$plugged" = 1 ] &&
-	   [ "$cap" -lt "$LIMIT" ] && [ -z "$(cat "$WAKEALARM" 2>/dev/null)" ]; then
+	   [ "$want" = 1 ] && [ -z "$(cat "$WAKEALARM" 2>/dev/null)" ]; then
 		if (echo "+$WAKE_INTERVAL" > "$WAKEALARM") 2>/dev/null; then
 			log "wake alarm set for +$WAKE_INTERVAL s (battery ${cap}%)"
 		else

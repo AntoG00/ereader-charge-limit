@@ -11,7 +11,8 @@ RESUME=75
 # Seconds between checks while the reader is awake.
 POLL=30
 
-# Experimental: while charging below LIMIT, set an RTC wake alarm so a
-# sleeping reader wakes up to check. See the README before enabling.
-WAKE_WHILE_CHARGING=0
-WAKE_INTERVAL=600
+# While charging below LIMIT, set an RTC wake alarm so a sleeping reader
+# wakes up (screen and light stay off) to check. Without it, a reader that
+# falls asleep while charging overshoots LIMIT. Seconds between wake-ups.
+WAKE_WHILE_CHARGING=1
+WAKE_INTERVAL=120
