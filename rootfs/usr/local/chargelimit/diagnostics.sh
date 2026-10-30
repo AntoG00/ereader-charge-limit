@@ -80,7 +80,7 @@ section "drivers"
 echo "modules: $(cut -d' ' -f1 /proc/modules 2>/dev/null | tr '\n' ' ')"
 if [ -r /proc/config.gz ]; then
 	zcat /proc/config.gz | grep -E '=(y|m)$' |
-		grep -iE 'charg|batt|pmic|power_supply|mfd_|regulator_|rtc_drv'
+		grep -iE 'charg|batt|pmic|power|mfd_|regulator_|rtc_drv'
 else
 	echo "(no /proc/config.gz)"
 fi

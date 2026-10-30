@@ -436,13 +436,6 @@ int main(int argc, char **argv)
 	}
 	find_supplies();
 	open_pmic();
-	/*
-	 * TEMPORARY: lets a BD71828 Sage exercise the path for readers with no
-	 * known PMIC. Set by "export KOBO_CHG_IGNORE_PMIC=1" in the config, so
-	 * only the daemon sees it. Remove once that path is tested.
-	 */
-	if (getenv("KOBO_CHG_IGNORE_PMIC"))
-		pmic = NULL;
 
 	if (strcmp(argv[1], "status") == 0)
 		return print_status() < 0;
