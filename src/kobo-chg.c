@@ -311,7 +311,11 @@ static int write_charging_attr(int enable)
 	return 0;
 }
 
-/* The "charging" file's value: 1, 0, or -1 if unreadable. */
+/*
+ * The "charging" file's value: 1, 0, or -1 if unreadable. On the BD71828
+ * Sage it follows CHG_EN only while a charger is connected and reads 0
+ * when unplugged, so with a known PMIC the register is the truth.
+ */
 static int read_charging_attr(void)
 {
 	char val[8];
@@ -322,19 +326,28 @@ static int read_charging_attr(void)
 }
 
 /*
- * Prefer the driver's file and read it back. In the direct-write loop each
- * pass re-reads the register, so a pass that finds nothing to do is the
- * verification.
+ * Prefer the driver's file, checked against the register when the PMIC is
+ * known, or against the file itself when it isn't. In the direct-write loop
+ * each pass re-reads the register, so a pass that finds nothing to do is
+ * the verification.
  */
 static int set_charging(int enable)
 {
 	if (charging_attr[0]) {
-		if (write_charging_attr(enable) == 0 && read_charging_attr() == enable)
-			return 0;
+		uint8_t cur;
+
 		if (!pmic) {
+			/* Unplugged, the file can't be read back (see print_status). */
+			if (write_charging_attr(enable) == 0 &&
+			    (!plugged || read_charging_attr() == enable))
+				return 0;
 			fprintf(stderr, "%s did not take effect\n", charging_attr);
 			return -1;
 		}
+		if (write_charging_attr(enable) == 0 &&
+		    read_reg_retry(pmic->ctl_reg, &cur) == 0 &&
+		    with_charging(cur, enable) == cur)
+			return 0;
 		fprintf(stderr, "%s did not take effect, writing the register directly\n",
 			charging_attr);
 	}
@@ -372,6 +385,8 @@ static int set_charging(int enable)
  *   charging_enabled=1 plugged=1 capacity=84 voltage_uv=4119300
  *   ctl=0x01 pmic_plugged=1 charge_state=0x0e
  * (one key per line). The last three only appear with a known PMIC.
+ * Without one, charging_enabled comes from the "charging" file, and is
+ * "unknown" while unplugged.
  */
 static int print_status(void)
 {
@@ -390,8 +405,6 @@ static int print_status(void)
 		if (read_line(path, val, sizeof(val)) == 0)
 			printf("voltage_uv=%s\n", val);
 	}
-	if (charging_attr[0])
-		enabled = read_charging_attr();
 	if (pmic) {
 		uint8_t ctl, dcin, state;
 
@@ -399,11 +412,16 @@ static int print_status(void)
 		    read_reg_retry(pmic->dcin_reg, &dcin) < 0 ||
 		    read_reg_retry(pmic->state_reg, &state) < 0)
 			return -1;
-		if (!charging_attr[0])
-			enabled = (ctl & pmic->en_bits) == pmic->en_bits;
+		enabled = (ctl & pmic->en_bits) == pmic->en_bits;
 		printf("ctl=0x%02x\n", ctl);
 		printf("pmic_plugged=%d\n", (dcin & pmic->dcin_mask) != 0);
 		printf("charge_state=0x%02x\n", state & pmic->state_mask);
+	} else if (charging_attr[0] && !plugged) {
+		/* The file reads 0 when unplugged whatever the setting. */
+		printf("charging_enabled=unknown\n");
+		return 0;
+	} else if (charging_attr[0]) {
+		enabled = read_charging_attr();
 	}
 	if (enabled >= 0)
 		printf("charging_enabled=%d\n", enabled);
@@ -418,6 +436,13 @@ int main(int argc, char **argv)
 	}
 	find_supplies();
 	open_pmic();
+	/*
+	 * TEMPORARY: lets a BD71828 Sage exercise the path for readers with no
+	 * known PMIC. Set by "export KOBO_CHG_IGNORE_PMIC=1" in the config, so
+	 * only the daemon sees it. Remove once that path is tested.
+	 */
+	if (getenv("KOBO_CHG_IGNORE_PMIC"))
+		pmic = NULL;
 
 	if (strcmp(argv[1], "status") == 0)
 		return print_status() < 0;

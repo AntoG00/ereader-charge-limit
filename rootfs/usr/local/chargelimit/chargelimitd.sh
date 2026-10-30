@@ -127,6 +127,15 @@ while :; do
 	fi
 	last=$now
 
+	# Nothing switches charging off while unplugged, so once it's on after an
+	# unplug it stays on until the next plug-in. That covers readers where
+	# kobo-chg can't read the state while unplugged (charging_enabled=unknown).
+	if [ "$plugged" = 1 ]; then
+		on_since_unplug=
+	elif [ -n "$on_since_unplug" ]; then
+		charging_enabled=1
+	fi
+
 	# Between RESUME and LIMIT keep the current state, so the stock driver
 	# re-enabling charging there just tops the battery up to LIMIT.
 	want=$charging_enabled
@@ -140,8 +149,12 @@ while :; do
 
 	if [ "$want" != "$charging_enabled" ]; then
 		if [ "$want" = 1 ]; then action=on; else action=off; fi
-		"$CHG" "$action" 2>>"$LOG" && log "charging $action (battery ${cap}%, plugged=$plugged)"
+		if "$CHG" "$action" 2>>"$LOG"; then
+			log "charging $action (battery ${cap}%, plugged=$plugged)"
+			charging_enabled=$want
+		fi
 	fi
+	[ "$plugged" = 0 ] && [ "$charging_enabled" = 1 ] && on_since_unplug=1
 
 	# The PMIC keeps charging while the reader sleeps and this loop can't run,
 	# so while we're letting it charge towards LIMIT, a wake alarm brings the
