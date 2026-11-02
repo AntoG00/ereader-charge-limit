@@ -213,9 +213,11 @@ while :; do
 	# The PMIC keeps charging while the reader sleeps and this loop can't run,
 	# so while we're letting it charge towards LIMIT, a wake alarm brings the
 	# reader back to check (the wake-up's power_supply event makes launch.sh
-	# signal us). With charging off the battery can't climb, and without the
-	# limit there's nothing to stop, so no alarm is needed. Only set when no
-	# alarm is pending, to leave Nickel's own alarms alone.
+	# signal us). This is a fallback: the Sage wakes itself about every 87 s
+	# while plugged in, which comes first, and every wake-up clears the alarm,
+	# so it's set again after each one. With charging off the battery can't
+	# climb, and without the limit there's nothing to stop, so no alarm is
+	# needed. Only set when no alarm is pending, to leave Nickel's own alone.
 	if [ "$WAKE_WHILE_CHARGING" = 1 ] && [ -n "$limiting" ] && [ "$plugged" = 1 ] &&
 	   [ "$want" = 1 ] && [ -z "$(cat "$WAKEALARM" 2>/dev/null)" ]; then
 		if (echo "+$WAKE_INTERVAL" > "$WAKEALARM") 2>/dev/null; then

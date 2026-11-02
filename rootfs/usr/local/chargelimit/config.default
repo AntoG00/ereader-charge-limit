@@ -26,5 +26,6 @@ UNINSTALL=0
 #POLL=30
 # While charging below LIMIT, wake a sleeping reader (screen and light stay
 # off) every WAKE_INTERVAL seconds to check, so it doesn't charge past LIMIT.
+# A fallback: some readers, like the Sage, already wake often enough.
 #WAKE_WHILE_CHARGING=1
 #WAKE_INTERVAL=120
