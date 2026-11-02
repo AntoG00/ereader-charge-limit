@@ -40,29 +40,29 @@ next_limit() {
 write_menu() {
 	[ -d "${MENU%/*}" ] || return 0
 	if [ "$ENABLED" = 1 ]; then
-		onoff="Charge limit is on - tap to turn off"
+		onoff="Limit on - turn off"
 	else
-		onoff="Charge limit is off - tap to turn on"
+		onoff="Limit off - turn on"
 	fi
 	if [ "$START" = 1 ]; then
-		start="Limit turns on at restart - tap to change"
+		start="On at restart - set off"
 	else
-		start="Limit turns off at restart - tap to change"
+		start="Off at restart - set on"
 	fi
 	if [ "$FULL_CHARGE" = 1 ]; then
-		full="Charging to 100% until unplugged - tap to cancel"
+		full="Full charge on - cancel"
 	else
-		full="Charge to 100% until unplugged"
+		full="Full charge once"
 	fi
 	cat > /tmp/chargelimit.menu <<EOF
 # Written by kobo-chargelimit whenever its settings change; edits are lost.
-menu_item :main :Charge limit status :cmd_output :5000:$DIR/ctl.sh status
+menu_item :main :Charge status :cmd_output :5000:$DIR/ctl.sh status
 menu_item :main :$onoff :cmd_output :5000:$DIR/ctl.sh toggle
-menu_item :main :Limit ${LIMIT}% - tap for $(next_limit)% :cmd_output :5000:$DIR/ctl.sh limit
+menu_item :main :Limit ${LIMIT}% - set $(next_limit)% :cmd_output :5000:$DIR/ctl.sh limit
 menu_item :main :$start :cmd_output :5000:$DIR/ctl.sh start
 menu_item :main :$full :cmd_output :5000:$DIR/ctl.sh full
-menu_item :main :Charge limit activity :cmd_output :5000:$DIR/ctl.sh activity
-menu_item :main :Charge limit diagnostics :cmd_output :9000:$DIR/ctl.sh diagnose
+menu_item :main :Charge activity :cmd_output :5000:$DIR/ctl.sh activity
+menu_item :main :Charge diagnostics :cmd_output :9000:$DIR/ctl.sh diagnose
 EOF
 	cmp -s /tmp/chargelimit.menu "$MENU" || cp /tmp/chargelimit.menu "$MENU"
 	rm -f /tmp/chargelimit.menu
@@ -94,7 +94,7 @@ limit_line() {
 status() {
 	if ! s=$("$DIR/kobo-chg" status 2>/dev/null); then
 		echo "This reader isn't supported yet."
-		echo "Tap \"Charge limit diagnostics\" and send the file it saves."
+		echo "Tap \"Charge diagnostics\" and send the file it saves."
 		return
 	fi
 	eval "$s"
