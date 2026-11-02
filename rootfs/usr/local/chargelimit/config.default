@@ -1,0 +1,30 @@
+# kobo-chargelimit settings. The NickelMenu items change them too; you can
+# also edit this file over USB. Changes apply within 30 seconds of ejecting.
+# Delete this file to get the defaults back.
+
+# 1: the charge limit is on. 0: it's off and the reader charges to 100% like
+# stock.
+ENABLED=1
+
+# What ENABLED becomes every time the reader restarts: 1 on, 0 off.
+START=1
+
+# Stop charging at LIMIT %. Charging resumes 5% lower.
+LIMIT=80
+
+# One-off actions: set one to 1, and the reader sets it back to 0 once done.
+# Charge to 100% until the charger is next unplugged, then limit again.
+FULL_CHARGE=0
+# Save a report for support requests as diagnostics.txt next to this file.
+DIAGNOSE=0
+# Remove kobo-chargelimit: turn charging back on and delete its files, its
+# menu and this folder.
+UNINSTALL=0
+
+# Advanced, uncomment to change.
+# Seconds between checks while the reader is awake.
+#POLL=30
+# While charging below LIMIT, wake a sleeping reader (screen and light stay
+# off) every WAKE_INTERVAL seconds to check, so it doesn't charge past LIMIT.
+#WAKE_WHILE_CHARGING=1
+#WAKE_INTERVAL=120

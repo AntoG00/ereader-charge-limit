@@ -383,7 +383,7 @@ static int set_charging(int enable)
  * Example on a BD71828 Sage:
  *   method=sysfs pmic=bd71828 battery=/sys/class/power_supply/battery
  *   charging_enabled=1 plugged=1 capacity=84 voltage_uv=4119300
- *   ctl=0x01 pmic_plugged=1 charge_state=0x0e
+ *   current_ua=402000 ctl=0x01 pmic_plugged=1 charge_state=0x0e
  * (one key per line). The last three only appear with a known PMIC.
  * Without one, charging_enabled comes from the "charging" file, and is
  * "unknown" while unplugged.
@@ -404,6 +404,15 @@ static int print_status(void)
 		snprintf(path, sizeof(path), "%s/voltage_now", battery);
 		if (read_line(path, val, sizeof(val)) == 0)
 			printf("voltage_uv=%s\n", val);
+		/* Negative while discharging. The average smooths out screen refreshes. */
+		snprintf(path, sizeof(path), "%s/current_avg", battery);
+		if (read_line(path, val, sizeof(val)) == 0) {
+			printf("current_ua=%s\n", val);
+		} else {
+			snprintf(path, sizeof(path), "%s/current_now", battery);
+			if (read_line(path, val, sizeof(val)) == 0)
+				printf("current_ua=%s\n", val);
+		}
 	}
 	if (pmic) {
 		uint8_t ctl, dcin, state;

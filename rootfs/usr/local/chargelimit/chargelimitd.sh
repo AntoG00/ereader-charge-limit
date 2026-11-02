@@ -2,32 +2,35 @@
 # Keep a Kobo's battery between RESUME and LIMIT percent while plugged in. At
 # LIMIT charging is switched off and the reader runs from USB. kobo-chg works
 # out how this reader's charging can be controlled; on a reader where it
-# can't, the daemon only writes diagnostics and idles.
+# can't, the daemon only writes diagnostics and idles. It keeps running while
+# the limit is off (ENABLED=0), only making sure charging is on, so turning
+# it back on in the config applies within POLL seconds.
 
 DIR=/usr/local/chargelimit
 CHG=$DIR/kobo-chg
 USER_DIR=/mnt/onboard/.adds/chargelimit
 WAKEALARM=/sys/class/rtc/rtc0/wakealarm
+# Full technical log, for diagnostics and reports.
 LOG=/tmp/chargelimit.log
+# A few plain-language events for the menu's activity view (ctl.sh).
+ACTIVITY=/tmp/chargelimit.activity
 LOCK=/tmp/chargelimitd.lock
-# "started" or "stopped", written by the Start/Stop menu items. /tmp is
-# cleared on reboot, so this only lasts until then.
-STATE=/tmp/chargelimit.state
+# Created once START has been applied this boot; /tmp is cleared on reboot.
+BOOTED=/tmp/chargelimit.booted
 
-# Defaults; $USER_DIR/config may override any of these.
-# START=boot limits from boot; START=manual leaves the reader stock until
-# the user starts the limiter from the menu.
-START=boot
-ENABLED=1
-LIMIT=80
-RESUME=75
+# The settings come from settings.sh, re-sourced every check; this is only
+# for the checks before the config is first readable.
 POLL=30
-WAKE_WHILE_CHARGING=1
-WAKE_INTERVAL=120
 
 log() {
 	[ -f "$LOG" ] && [ "$(wc -c < "$LOG")" -gt 65536 ] && : > "$LOG"
 	echo "$(date '+%F %T') $*" >> "$LOG"
+}
+
+activity() {
+	[ -f "$ACTIVITY" ] && [ "$(wc -l < "$ACTIVITY")" -gt 40 ] &&
+		tail -n 20 "$ACTIVITY" > "$ACTIVITY.tmp" && mv "$ACTIVITY.tmp" "$ACTIVITY"
+	echo "$(date '+%H:%M') $*" >> "$ACTIVITY"
 }
 
 # launch.sh sends USR1 on every power_supply event to ask for an immediate
@@ -50,50 +53,57 @@ if ! mkdir "$LOCK" 2>/dev/null; then
 fi
 echo $$ > "$LOCK/pid"
 
-# Hand charging back to the stock driver whenever we stop. An empty message
-# stops quietly.
+# Hand charging back to the stock driver if we're killed.
 stop() {
 	"$CHG" on
 	rm -rf "$LOCK"
-	[ -n "$1" ] && log "$1"
+	log "stopped"
 	exit 0
 }
-trap 'stop stopped' TERM INT
+trap stop TERM INT
 
 while :; do
 	# The user partition is unmounted while the reader is in USB mass-storage
 	# mode (.kobo is missing then); the last settings read stay in effect
-	# until it's back. At boot it may not be mounted yet, and START isn't
+	# until it's back. At boot it may not be mounted yet, and ENABLED isn't
 	# known until it is, so wait for the first read before doing anything.
 	if [ -d /mnt/onboard/.kobo ]; then
-		[ -f "$USER_DIR/config" ] && . "$USER_DIR/config"
+		# Once per run: give users a commented config to find and edit,
+		# apply START once per boot (the marker stops a daemon restarted
+		# later in the same boot from applying it again), and refresh the
+		# menu.
+		if [ -z "$config_read" ]; then
+			if [ ! -f "$USER_DIR/config" ]; then
+				mkdir -p "$USER_DIR"
+				cp "$DIR/config.default" "$USER_DIR/config"
+			fi
+			. "$DIR/settings.sh"
+			if [ ! -e "$BOOTED" ]; then
+				[ "$ENABLED" = "$START" ] || set_setting ENABLED "$START"
+				: > "$BOOTED"
+			fi
+			"$DIR/ctl.sh" menu
+		fi
+		. "$DIR/settings.sh"
 		config_read=1
 	elif [ -z "$config_read" ]; then
 		nap
 		continue
 	fi
-	if [ -f "$USER_DIR/uninstall" ]; then
+	if [ "$UNINSTALL" = 1 ]; then
 		"$CHG" on
-		rm -f /etc/udev/rules.d/99-chargelimit.rules "$USER_DIR/uninstall"
-		rm -rf "$DIR" "$LOCK"
+		rm -f /etc/udev/rules.d/99-chargelimit.rules /mnt/onboard/.adds/nm/chargelimit
+		rm -rf "$USER_DIR" "$DIR" "$LOCK" "$BOOTED"
 		log "uninstalled"
 		exit 0
 	fi
 
-	# udev starts us at boot and on every charger event in both modes. With
-	# START=manual (until Start) or after Stop, all we do is make sure
-	# charging is on, so the reader behaves as stock, and leave.
-	state=$(cat "$STATE" 2>/dev/null)
-	if [ "$state" = stopped ] || { [ "$START" = manual ] && [ "$state" != started ]; }; then
-		stop "${announced:+stopped until started again}"
-	fi
-
 	# Diagnostics go to the USB drive once per boot, and again whenever the
-	# user creates a "diagnose" file there.
-	if [ -d /mnt/onboard/.kobo ] && { [ -z "$diag_saved" ] || [ -f "$USER_DIR/diagnose" ]; }; then
+	# user sets DIAGNOSE=1.
+	if [ -d /mnt/onboard/.kobo ] && { [ -z "$diag_saved" ] || [ "$DIAGNOSE" = 1 ]; }; then
 		mkdir -p "$USER_DIR"
 		"$DIR/diagnostics.sh" > "$USER_DIR/diagnostics.txt" 2>&1
-		rm -f "$USER_DIR/diagnose"
+		[ "$DIAGNOSE" = 1 ] && set_setting DIAGNOSE 0
 		diag_saved=1
 	fi
 
@@ -103,6 +113,7 @@ while :; do
 		if [ -z "$unavailable" ]; then
 			eval "$status"
 			log "no usable charge control (method=$method, pmic=$pmic), idling; see $USER_DIR/diagnostics.txt"
+			activity "This reader isn't supported yet"
 			unavailable=1
 		fi
 		nap
@@ -110,7 +121,7 @@ while :; do
 	fi
 	eval "$status"
 	if [ -z "$announced" ]; then
-		log "started, version $(cat "$DIR/VERSION" 2>/dev/null), START=$START: method=$method pmic=$pmic battery=$battery"
+		log "started, version $(cat "$DIR/VERSION" 2>/dev/null): method=$method pmic=$pmic battery=$battery"
 		announced=1
 	elif [ -n "$unavailable" ]; then
 		log "using method=$method pmic=$pmic battery=$battery"
@@ -136,10 +147,46 @@ while :; do
 		charging_enabled=1
 	fi
 
+	# A full charge lasts until the charger is unplugged: it ends at the first
+	# check that sees the charger gone after seeing it plugged in, so one set
+	# while unplugged covers the next time it's plugged in. Retried if the
+	# config can't be written yet (USB mass-storage mode).
+	if [ "$FULL_CHARGE" != 1 ]; then
+		full_plugged=
+	elif [ "$plugged" = 1 ]; then
+		full_plugged=1
+	elif [ -n "$full_plugged" ] && set_setting FULL_CHARGE 0; then
+		full_plugged=
+		"$DIR/ctl.sh" menu
+	fi
+
+	# Only "limiting" holds the battery below 100%. Each change is reported
+	# once, whether it came from the menu, the config or the daemon itself.
+	limiting=
+	if [ "$ENABLED" = 0 ]; then
+		mode="limit off"
+	elif [ "$FULL_CHARGE" = 1 ]; then
+		mode="full charge until unplugged"
+	else
+		mode="limit $LIMIT%"
+		limiting=1
+	fi
+	if [ "$mode" != "$last_mode" ]; then
+		log "$mode"
+		if [ -n "$limiting" ]; then
+			activity "Charge limit on ($LIMIT%)"
+		elif [ "$ENABLED" = 0 ]; then
+			activity "Charge limit off"
+		else
+			activity "Charging to 100% until unplugged"
+		fi
+		last_mode=$mode
+	fi
+
 	# Between RESUME and LIMIT keep the current state, so the stock driver
 	# re-enabling charging there just tops the battery up to LIMIT.
 	want=$charging_enabled
-	if [ "$ENABLED" != 1 ] || [ "$plugged" = 0 ]; then
+	if [ "$plugged" = 0 ] || [ -z "$limiting" ]; then
 		want=1
 	elif [ "$cap" -ge "$LIMIT" ]; then
 		want=0
@@ -151,6 +198,13 @@ while :; do
 		if [ "$want" = 1 ]; then action=on; else action=off; fi
 		if "$CHG" "$action" 2>>"$LOG"; then
 			log "charging $action (battery ${cap}%, plugged=$plugged)"
+			if [ "$want" = 0 ]; then
+				activity "Stopped charging at $cap%"
+			elif [ "$plugged" = 1 ]; then
+				activity "Resumed charging at $cap%"
+			else
+				activity "Unplugged at $cap%, charging allowed again"
+			fi
 			charging_enabled=$want
 		fi
 	fi
@@ -159,10 +213,10 @@ while :; do
 	# The PMIC keeps charging while the reader sleeps and this loop can't run,
 	# so while we're letting it charge towards LIMIT, a wake alarm brings the
 	# reader back to check (the wake-up's power_supply event makes launch.sh
-	# signal us). With charging off the battery can't climb, so no alarm is
-	# needed. Only set when no alarm is pending, to leave Nickel's own alarms
-	# alone.
-	if [ "$WAKE_WHILE_CHARGING" = 1 ] && [ "$ENABLED" = 1 ] && [ "$plugged" = 1 ] &&
+	# signal us). With charging off the battery can't climb, and without the
+	# limit there's nothing to stop, so no alarm is needed. Only set when no
+	# alarm is pending, to leave Nickel's own alarms alone.
+	if [ "$WAKE_WHILE_CHARGING" = 1 ] && [ -n "$limiting" ] && [ "$plugged" = 1 ] &&
 	   [ "$want" = 1 ] && [ -z "$(cat "$WAKEALARM" 2>/dev/null)" ]; then
 		if (echo "+$WAKE_INTERVAL" > "$WAKEALARM") 2>/dev/null; then
 			log "wake alarm set for +$WAKE_INTERVAL s (battery ${cap}%)"
