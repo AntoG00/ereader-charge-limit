@@ -404,15 +404,12 @@ static int print_status(void)
 		snprintf(path, sizeof(path), "%s/voltage_now", battery);
 		if (read_line(path, val, sizeof(val)) == 0)
 			printf("voltage_uv=%s\n", val);
-		/* Negative while discharging. The average smooths out screen refreshes. */
-		snprintf(path, sizeof(path), "%s/current_avg", battery);
-		if (read_line(path, val, sizeof(val)) == 0) {
+		/* Negative while discharging. current_now rather than current_avg:
+		 * on the BD71828 Sage the average lagged by minutes, missing a
+		 * full backlight and the switch to charging. */
+		snprintf(path, sizeof(path), "%s/current_now", battery);
+		if (read_line(path, val, sizeof(val)) == 0)
 			printf("current_ua=%s\n", val);
-		} else {
-			snprintf(path, sizeof(path), "%s/current_now", battery);
-			if (read_line(path, val, sizeof(val)) == 0)
-				printf("current_ua=%s\n", val);
-		}
 	}
 	if (pmic) {
 		uint8_t ctl, dcin, state;

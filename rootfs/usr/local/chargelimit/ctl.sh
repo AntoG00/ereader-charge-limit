@@ -3,7 +3,7 @@
 #
 #   ctl.sh status     settings, battery and what charging is doing
 #   ctl.sh toggle     flip ENABLED: the limit on or off
-#   ctl.sh limit      cycle LIMIT through 80, 85, 90, 95
+#   ctl.sh limit      cycle LIMIT through 70, 80, 90
 #   ctl.sh start      flip START: what ENABLED becomes at each restart
 #   ctl.sh full       flip FULL_CHARGE: charge to 100% until unplugged
 #   ctl.sh activity   recent events, written by the daemon
@@ -20,7 +20,7 @@ DIR=/usr/local/chargelimit
 USER_DIR=/mnt/onboard/.adds/chargelimit
 ACTIVITY=/tmp/chargelimit.activity
 MENU=/mnt/onboard/.adds/nm/chargelimit
-LIMITS="80 85 90 95"
+LIMITS="70 80 90"
 
 . "$DIR/settings.sh"
 
@@ -105,14 +105,22 @@ status() {
 		echo "It turns off when the reader restarts."
 	fi
 	echo
+	# Charging or not comes from the driver's status, which Nickel's battery
+	# icon also shows, so the two agree; the current's sign can lag behind.
+	bat_status=$(cat "$battery/status" 2>/dev/null)
 	if [ "$plugged" = 0 ]; then
 		echo "Battery $capacity%, not plugged in, using $(watts) W."
 	elif [ "$charging_enabled" = 0 ]; then
 		echo "Battery $capacity%, plugged in, holding: the charger powers the reader."
-	elif [ "${current_ua:-0}" -gt 0 ]; then
+	elif [ "$bat_status" = Full ]; then
+		echo "Battery $capacity%, plugged in, full."
+	elif [ "$bat_status" = Charging ] && [ "${current_ua:-0}" -gt 0 ]; then
 		echo "Battery $capacity%, plugged in, charging at $(watts) W."
+	elif [ "$bat_status" = Charging ]; then
+		# Just switched on: the current hasn't turned positive yet.
+		echo "Battery $capacity%, plugged in, charging."
 	else
-		echo "Battery $capacity%, plugged in, using $(watts) W from the battery."
+		echo "Battery $capacity%, plugged in, not charging, using $(watts) W from the battery."
 	fi
 }
 
