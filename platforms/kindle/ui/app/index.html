@@ -4,36 +4,36 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <title>Charge limit</title>
-    <!-- Sizes follow the screen width (1236 px on a Paperwhite 11th gen). -->
-    <script>document.documentElement.style.fontSize = (window.innerWidth || 1072) / 38 + "px";</script>
+    <!-- Sizes follow the screen width (1236 px on a Paperwhite 11th gen),
+         small enough that the page fits on one screen: Mesquite scrolls an
+         app's page only a little per swipe. -->
+    <script>document.documentElement.style.fontSize = (window.innerWidth || 1072) / 42 + "px";</script>
     <style>
-        body { font-family: sans-serif; margin: 1rem 1.2rem; background: #fff; color: #000; }
-        h1 { font-size: 1.5rem; margin: 0 0 0.8rem 0; }
-        .box { font-size: 1rem; line-height: 1.4; border: 2px solid #000; padding: 0.6rem 0.8rem;
-               margin: 0 0 1rem 0; white-space: pre-wrap; min-height: 1.4rem; }
-        button { display: block; width: 100%; font-size: 1.1rem; padding: 0.8rem; margin: 0 0 0.6rem 0;
+        body { font-family: sans-serif; margin: 0.8rem 1.2rem; background: #fff; color: #000; }
+        h1 { font-size: 1.4rem; margin: 0 0 0.6rem 0; }
+        /* Text, not a button: grey and borderless. */
+        .info { font-size: 1rem; line-height: 1.35; background: #e4e4e4; padding: 0.6rem 0.8rem;
+                margin: 0 0 0.8rem 0; white-space: pre-wrap; }
+        button { display: block; width: 100%; font-size: 1.1rem; padding: 0.6rem; margin: 0 0 0.5rem 0;
                  background: #fff; color: #000; border: 2px solid #000; }
-        button.secondary { font-size: 1rem; padding: 0.6rem; border-width: 1px; }
-        button:disabled { color: #777; border-color: #777; }
-        .gap { height: 0.8rem; }
-        .small { font-size: 0.8rem; color: #444; margin-top: 1rem; }
+        button.secondary { font-size: 1rem; padding: 0.45rem; border-width: 1px; }
+        button:disabled { color: #888; border-color: #aaa; }
+        .gap { height: 0.5rem; }
+        .small { font-size: 0.8rem; color: #444; margin: 0.6rem 0 0 0; }
     </style>
 </head>
 <body>
     <h1>Charge limit</h1>
     <button id="install" disabled>Checking...</button>
-    <div id="status" class="box">Loading...</div>
+    <div id="info" class="info">Loading...</div>
 
     <button data-action="toggle" disabled>Limit on or off</button>
     <button data-action="limit" disabled>Change the limit</button>
     <button data-action="start" disabled>At restart</button>
     <button data-action="full" disabled>Full charge once</button>
-
-    <div id="message" class="box"></div>
-
+    <div class="gap"></div>
     <button class="secondary" data-action="activity" disabled>Charge activity</button>
     <button class="secondary" data-action="diagnose" disabled>Charge diagnostics</button>
-    <div class="gap"></div>
     <button class="secondary" id="uninstall" disabled>Uninstall chargelimit</button>
 
     <p class="small" id="version"></p>

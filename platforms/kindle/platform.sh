@@ -50,6 +50,12 @@ refresh_menu() {
 	:
 }
 
+# The daemon calls this when the plug, charging or battery level changed:
+# the app, if it's running, refreshes its status. Fails quietly otherwise.
+notify_ui() {
+	lipc-set-prop "$APP_ID" statusChanged -s now 2>/dev/null
+}
+
 # The running bridge's pid, if any.
 bridge_pid() {
 	pid=$(cat "$BRIDGE_PID" 2>/dev/null)
@@ -59,16 +65,21 @@ bridge_pid() {
 # What uninstalling removes besides $DIR and $USER_DIR (which holds the
 # installer and the UI): the app (closed first: the Kindle's × only hides it)
 # and its registration, the bridge, Mesquite's cached copy, the scriptlet,
-# and the boot files.
+# and the boot files. Only the daemon runs it, so LOG and log() are its.
 platform_uninstall() {
 	lipc-set-prop com.lab126.appmgrd stop "app://$APP_ID" 2>/dev/null
 	pid=$(bridge_pid) && kill "$pid"
 	rm -rf "/var/local/mesquite/$APP_ID" "$BRIDGE_PID"
-	sqlite3 "$APPREG" <<EOF
+	# The app manager may still be writing appreg.db as it closes the app,
+	# so wait for it rather than fail at once (sqlite3's default).
+	sqlite3 "$APPREG" >>"$LOG" 2>&1 <<EOF
+.timeout 5000
 DELETE FROM properties WHERE handlerId='$APP_ID';
 DELETE FROM associations WHERE handlerId='$APP_ID';
 DELETE FROM handlerIds WHERE handlerId='$APP_ID';
 EOF
+	left=$(sqlite3 "$APPREG" "SELECT count(*) FROM properties WHERE handlerId='$APP_ID';" 2>&1)
+	[ "$left" = 0 ] || log "couldn't remove the app's registration ($left rows left)"
 	rm -f "$DOCUMENTS/chargelimit.sh"
 	/usr/sbin/mntroot rw >/dev/null 2>&1
 	rm -f /etc/upstart/chargelimit.conf /etc/udev/rules.d/99-chargelimit.rules

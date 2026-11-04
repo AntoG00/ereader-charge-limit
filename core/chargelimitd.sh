@@ -220,6 +220,13 @@ while :; do
 	fi
 	[ "$plugged" = 0 ] && [ "$charging_enabled" = 1 ] && on_since_unplug=1
 
+	# A UI that shows the status (the Kindle app) hears when it changed.
+	shown="$plugged $charging_enabled $cap"
+	if [ "$shown" != "$last_shown" ]; then
+		[ -n "$last_shown" ] && notify_ui
+		last_shown=$shown
+	fi
+
 	# The PMIC keeps charging while the reader sleeps and this loop can't run,
 	# so while we're letting it charge towards LIMIT, a wake alarm brings the
 	# reader back to check (the wake-up's power_supply event makes launch.sh

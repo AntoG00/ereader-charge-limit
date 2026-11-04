@@ -47,6 +47,12 @@ EOF
 	rm -f /tmp/chargelimit.menu
 }
 
+# The daemon calls this when the plug, charging or battery level changed.
+# NickelMenu items read the status when tapped, so there's nothing to tell.
+notify_ui() {
+	:
+}
+
 # What uninstalling removes besides $DIR and $USER_DIR. KoboRoot.tgz can add
 # files but not remove them, so the daemon does it.
 platform_uninstall() {

@@ -10,10 +10,12 @@
 # and the answer is plain text:
 #   state      installed=yes|no (actions can run), current=yes|no (this
 #              build is installed with both boot files: install.sh --check),
+#              supported=yes|no (chargectl can control charging here),
 #              version=<the installer's build>
 #   install    install.sh's output
 #   status toggle limit start full activity diagnose labels uninstall
-#              that action of the installed actions.sh
+#              that action of the installed actions.sh; diagnose also works
+#              before installing, from the installer's copy
 # Nothing else can be run. The token, written by open-app.sh into token and
 # app/bridge.js, keeps out web pages in the Kindle's browser, which could
 # reach 127.0.0.1 too but can't read the app's files. "_" only defeats
@@ -58,6 +60,7 @@ state)
 	reply "200 OK"
 	if [ -f "$INSTALL_DIR/actions.sh" ]; then echo installed=yes; else echo installed=no; fi
 	if sh "$INSTALLER/install.sh" --check; then echo current=yes; else echo current=no; fi
+	if "$INSTALLER/runtime/chargectl" status >/dev/null 2>&1; then echo supported=yes; else echo supported=no; fi
 	echo "version=$(cat "$INSTALLER/runtime/VERSION")"
 	;;
 install)
@@ -68,6 +71,8 @@ status | toggle | limit | start | full | activity | diagnose | labels | uninstal
 	reply "200 OK"
 	if [ -f "$INSTALL_DIR/actions.sh" ]; then
 		"$INSTALL_DIR/actions.sh" "$action" 2>&1
+	elif [ "$action" = diagnose ]; then
+		sh "$INSTALLER/runtime/actions.sh" diagnose 2>&1
 	else
 		echo "chargelimit isn't installed."
 	fi

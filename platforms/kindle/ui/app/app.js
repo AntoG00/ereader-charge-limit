@@ -2,22 +2,29 @@
  * chargelimit's Kindle app. ES5 only: Mesquite is WebKit 533.
  *
  * The page asks the bridge (bridge.sh behind BusyBox tcpsvd on 127.0.0.1)
- * for the state first. Until chargelimit is installed, only Install works;
- * once it is, Install shows "Installed" (greyed out) unless this build or
+ * for the state first. Until chargelimit is installed, Install works if
+ * this Kindle is supported, and Charge diagnostics always does; once it is
+ * installed, Install shows "Installed" (greyed out) unless this build or
  * the boot files are missing, and the other buttons run actions of
- * actions.sh. After each one it shows the action's text and refreshes the
- * status and the setting buttons' labels. BRIDGE and TOKEN come from
- * bridge.js, written by open-app.sh.
+ * actions.sh. The info box shows the last action's text above the status.
+ * BRIDGE and TOKEN come from bridge.js, written by open-app.sh.
  */
 (function () {
     var busy = false;
     var uninstallArmed = null;
+    // The last action's text, shown above the status until the next one or
+    // a refresh event.
+    var message = "";
 
     function el(id) { return document.getElementById(id); }
 
     function setText(node, text) {
         node.innerHTML = "";
         node.appendChild(document.createTextNode(text));
+    }
+
+    function showInfo(text) {
+        setText(el("info"), message ? message + "\n\n" + text : text);
     }
 
     // GET BRIDGE/<action>; callback(text, error). Diagnostics can take a
@@ -68,11 +75,14 @@
         return result;
     }
 
-    // Everything but Install needs chargelimit installed.
-    function enable(on) {
+    // Everything but Install and Charge diagnostics needs chargelimit
+    // installed.
+    function enable(installed) {
         var buttons = document.querySelectorAll("button[data-action]");
-        for (var i = 0; i < buttons.length; i++) buttons[i].disabled = !on;
-        el("uninstall").disabled = !on;
+        for (var i = 0; i < buttons.length; i++) {
+            buttons[i].disabled = !installed && buttons[i].getAttribute("data-action") !== "diagnose";
+        }
+        el("uninstall").disabled = !installed;
     }
 
     // The install state, then the status text and the setting buttons'
@@ -81,26 +91,30 @@
         call("state", function (text, err) {
             var install = el("install");
             if (err) {
-                setText(el("status"), problem(err));
+                showInfo(problem(err));
                 return;
             }
             var state = parse(text);
             var installed = state.installed === "yes";
             var current = state.current === "yes";
+            var supported = state.supported === "yes";
             setText(install, current ? "Installed" : "Install");
-            install.disabled = current;
+            install.disabled = current || !supported;
             enable(installed);
             setText(el("version"), "chargelimit " + state.version);
             if (!installed) {
-                setText(el("status"), "chargelimit isn't installed yet.\n" +
-                    "Install adds the charge limiter, which then starts by itself with the Kindle.");
+                showInfo(supported ?
+                    "This Kindle is supported, and chargelimit isn't installed yet.\n" +
+                    "Install adds the charge limiter, which then starts by itself with the Kindle." :
+                    "This Kindle isn't supported yet, so chargelimit can't be installed.\n" +
+                    "Charge diagnostics saves a report, chargelimit/diagnostics.txt, to send with a request to support it.");
                 return;
             }
             // Installed, but a newer build is in chargelimit/install, or a
             // firmware update removed the start at boot.
             var note = current ? "" : "Tap Install to update chargelimit or repair its start at boot.\n\n";
             call("status", function (text, err) {
-                setText(el("status"), note + (err ? problem(err) : text));
+                showInfo(note + (err ? problem(err) : text));
             });
             call("labels", function (text, err) {
                 if (err) return;
@@ -116,10 +130,11 @@
     function run(action, waiting) {
         if (busy) return;
         busy = true;
-        setText(el("message"), waiting || "...");
+        message = "";
+        showInfo(waiting || "...");
         call(action, function (text, err) {
             busy = false;
-            setText(el("message"), err ? problem(err) : text);
+            message = err ? problem(err) : text;
             refresh();
         });
     }
@@ -151,11 +166,17 @@
         }, 5000);
     }, false);
 
-    // open-app.sh sends this when the app was already open in the background.
+    // "refresh": open-app.sh, when the app was already open in the
+    // background, so the last message goes. "statusChanged": the daemon,
+    // when the plug, charging or battery level changed.
     try {
         window.kindle.messaging.receiveMessage("refresh", function () {
-            setText(el("message"), "");
+            if (busy) return;
+            message = "";
             refresh();
+        });
+        window.kindle.messaging.receiveMessage("statusChanged", function () {
+            if (!busy) refresh();
         });
     } catch (e) { /* outside a Kindle */ }
 

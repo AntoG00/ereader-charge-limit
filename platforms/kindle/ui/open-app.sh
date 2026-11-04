@@ -18,8 +18,10 @@ EOF
 fi
 
 # Register the app with the Kindle's app manager (again each time: it's
-# cheap, and the rows then always point here).
+# cheap, and the rows then always point here). Waits if the app manager is
+# writing appreg.db.
 sqlite3 "$APPREG" <<EOF
+.timeout 5000
 INSERT OR IGNORE INTO interfaces (interface) VALUES ('application');
 INSERT OR IGNORE INTO handlerIds (handlerId) VALUES ('$APP_ID');
 INSERT OR IGNORE INTO associations (handlerId, interface, contentId, defaultAssoc)
