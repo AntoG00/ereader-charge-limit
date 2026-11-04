@@ -35,14 +35,22 @@ activity() {
 	echo "$(date '+%H:%M') $*" >> "$ACTIVITY"
 }
 
-# launch.sh sends USR1 on every power_supply event to ask for an immediate
-# check. Trap it before anything else: its default action would kill us. A
-# trapped signal makes `wait` return early, which ends the nap.
-trap : USR1
+# launch.sh sends USR1 on every power_supply event and setting change to ask
+# for an immediate check. Trap it before anything else: its default action
+# would kill us. A trapped signal makes `wait` return early, which ends the
+# nap. One that arrives during a check (the first one writes diagnostics,
+# which takes a moment) is remembered, and the next nap is skipped.
+poked=
+trap 'poked=1' USR1
 nap() {
+	if [ -n "$poked" ]; then
+		poked=
+		return
+	fi
 	sleep "$POLL" &
 	wait $!
 	kill $! 2>/dev/null
+	poked=
 }
 
 # One daemon per boot. /tmp is a tmpfs, so a lock left by a crash is gone after

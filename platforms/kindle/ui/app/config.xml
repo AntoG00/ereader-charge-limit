@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- chargelimit's Kindle app, run by Mesquite. The id is APP_ID in
+     platform.sh. local-port-access lets the page reach the bridge on
+     127.0.0.1; messaging lets it receive open-app.sh's refresh event. -->
+<widget id="com.chargelimit.app" version="1.0" viewmodes="application"
+        xmlns="http://www.w3.org/ns/widgets"
+        xmlns:kindle="http://kindle.amazon.com/ns/widget-extensions">
+
+    <name xml:lang="en">Charge limit</name>
+    <description xml:lang="en">Keep the battery below a charge limit</description>
+
+    <content src="index.html" />
+
+    <kindle:permissions>
+        <kindle:permission name="local-port-access" />
+    </kindle:permissions>
+
+    <kindle:chrome>
+        <kindle:asset key="configureSearchBar" value="system" />
+    </kindle:chrome>
+
+    <kindle:gestures>
+        <kindle:param name="tap" value="yes" properties="fire_on_tap:1" />
+        <kindle:param name="swipe" value="yes" />
+    </kindle:gestures>
+
+    <feature name="http://kindle.amazon.com/apis" required="true">
+        <param name="appmgr" value="yes" />
+        <param name="gestures" value="yes" />
+        <param name="messaging" value="yes" />
+        <param name="device" value="yes" />
+        <param name="chrome" value="yes" />
+    </feature>
+
+    <kindle:messaging>
+        <kindle:app name="com.lab126.pillow" value="yes" />
+        <kindle:app name="com.lab126.chromebar" value="yes" />
+    </kindle:messaging>
+
+    <kindle:settings>
+        <kindle:setting name="internetRequired" value="no" />
+        <kindle:setting name="saveContext" value="no" />
+    </kindle:settings>
+
+</widget>

@@ -9,6 +9,9 @@
 #   actions.sh activity   recent events, written by the daemon
 #   actions.sh diagnose   save the diagnostics report to the user's storage
 #   actions.sh menu       refresh the menu to show the current settings
+#   actions.sh labels     the settings' labels as key=label lines, for a UI
+#                         that draws its own buttons (the Kindle app)
+#   actions.sh uninstall  set UNINSTALL, so the daemon removes chargelimit
 #
 # Every setting lives in the config, so the menu and hand edits behave the
 # same; the daemon picks changes up at once because launch.sh signals it.
@@ -144,5 +147,15 @@ diagnose)
 	echo "Connect the reader to a computer to copy it."
 	;;
 menu) refresh_menu ;;
+labels)
+	for key in toggle limit start full; do
+		echo "$key=$(label "$key")"
+	done
+	;;
+uninstall)
+	set_setting UNINSTALL 1
+	echo "Removing chargelimit: charging goes back to normal, and its files and menu go away within a few seconds."
+	"$DIR/launch.sh"
+	;;
 esac
 exit 0

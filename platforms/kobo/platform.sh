@@ -33,28 +33,13 @@ device_info() {
 # NickelMenu isn't installed. Needs the settings (settings.sh) loaded.
 refresh_menu() {
 	[ -d "${MENU%/*}" ] || return 0
-	if [ "$ENABLED" = 1 ]; then
-		onoff="Limit on - turn off"
-	else
-		onoff="Limit off - turn on"
-	fi
-	if [ "$START" = 1 ]; then
-		start="On at restart - set off"
-	else
-		start="Off at restart - set on"
-	fi
-	if [ "$FULL_CHARGE" = 1 ]; then
-		full="Full charge on - cancel"
-	else
-		full="Full charge once"
-	fi
 	cat > /tmp/chargelimit.menu <<EOF
 # Written by chargelimit whenever its settings change; edits are lost.
 menu_item :main :Charge status :cmd_output :5000:$DIR/actions.sh status
-menu_item :main :$onoff :cmd_output :5000:$DIR/actions.sh toggle
-menu_item :main :Limit ${LIMIT}% - set $(next_limit)% :cmd_output :5000:$DIR/actions.sh limit
-menu_item :main :$start :cmd_output :5000:$DIR/actions.sh start
-menu_item :main :$full :cmd_output :5000:$DIR/actions.sh full
+menu_item :main :$(label toggle) :cmd_output :5000:$DIR/actions.sh toggle
+menu_item :main :$(label limit) :cmd_output :5000:$DIR/actions.sh limit
+menu_item :main :$(label start) :cmd_output :5000:$DIR/actions.sh start
+menu_item :main :$(label full) :cmd_output :5000:$DIR/actions.sh full
 menu_item :main :Charge activity :cmd_output :5000:$DIR/actions.sh activity
 menu_item :main :Charge diagnostics :cmd_output :9000:$DIR/actions.sh diagnose
 EOF

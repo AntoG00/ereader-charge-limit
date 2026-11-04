@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>Charge limit</title>
+    <!-- Sizes follow the screen width (1236 px on a Paperwhite 11th gen). -->
+    <script>document.documentElement.style.fontSize = (window.innerWidth || 1072) / 38 + "px";</script>
+    <style>
+        body { font-family: sans-serif; margin: 1rem 1.2rem; background: #fff; color: #000; }
+        h1 { font-size: 1.5rem; margin: 0 0 0.8rem 0; }
+        .box { font-size: 1rem; line-height: 1.4; border: 2px solid #000; padding: 0.6rem 0.8rem;
+               margin: 0 0 1rem 0; white-space: pre-wrap; min-height: 1.4rem; }
+        button { display: block; width: 100%; font-size: 1.1rem; padding: 0.8rem; margin: 0 0 0.6rem 0;
+                 background: #fff; color: #000; border: 2px solid #000; }
+        button.secondary { font-size: 1rem; padding: 0.6rem; border-width: 1px; }
+        button:disabled { color: #777; border-color: #777; }
+        .gap { height: 0.8rem; }
+        .small { font-size: 0.8rem; color: #444; margin-top: 1rem; }
+    </style>
+</head>
+<body>
+    <h1>Charge limit</h1>
+    <button id="install" disabled>Checking...</button>
+    <div id="status" class="box">Loading...</div>
+
+    <button data-action="toggle" disabled>Limit on or off</button>
+    <button data-action="limit" disabled>Change the limit</button>
+    <button data-action="start" disabled>At restart</button>
+    <button data-action="full" disabled>Full charge once</button>
+
+    <div id="message" class="box"></div>
+
+    <button class="secondary" data-action="activity" disabled>Charge activity</button>
+    <button class="secondary" data-action="diagnose" disabled>Charge diagnostics</button>
+    <div class="gap"></div>
+    <button class="secondary" id="uninstall" disabled>Uninstall chargelimit</button>
+
+    <p class="small" id="version"></p>
+
+    <!-- bridge.js (BRIDGE, TOKEN) is written by open-app.sh. -->
+    <script src="bridge.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

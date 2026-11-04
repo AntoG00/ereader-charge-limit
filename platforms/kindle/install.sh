@@ -1,17 +1,28 @@
 #!/bin/sh
-# Install chargelimit on a Kindle. The "Charge install" scriptlet runs this
-# from the installer's folder (USER_DIR/install), which stays on the Kindle:
-# running it again repairs an install, for example after a firmware update
-# removed the boot files. It prints what happened, for the scriptlet to show.
+# Install chargelimit's daemon on a Kindle, from the installer's folder
+# (USER_DIR/install), which stays on the Kindle. The app's Install button
+# runs it through the bridge and shows what it prints; `install.sh --check`
+# tells the app whether this build is installed with both boot files. Run
+# again, it updates or repairs an install (a firmware update probably
+# removes the boot files). The app and the bridge run from install/ui and
+# aren't touched.
 #
 #   install/
 #     install.sh, chargelimit.conf, 99-chargelimit.rules
-#     scriptlets/   chargelimit-*.sh, the actions, for the library
-#     runtime/      the core, platform.sh, show.sh, chargectl, VERSION
+#     runtime/   copied to INSTALL_DIR: the core, platform.sh, chargectl,
+#                VERSION
+#     ui/        the app and its bridge (see open-app.sh)
 
 P=$(cd "$(dirname "$0")" && pwd)
-DIR=/var/local/chargelimit
+. "$P/runtime/platform.sh"
+DIR=$INSTALL_DIR
 LOCK=/tmp/chargelimitd.lock
+
+if [ "$1" = --check ]; then
+	cmp -s "$P/runtime/VERSION" "$DIR/VERSION" &&
+		[ -f /etc/upstart/chargelimit.conf ] && [ -f /etc/udev/rules.d/99-chargelimit.rules ]
+	exit
+fi
 
 # A running daemon is replaced: stopping it switches charging on and removes
 # the lock. Replacing a shell script while it runs would break it.
@@ -32,8 +43,6 @@ if ! mkdir -p "$DIR" || ! cp -R "$P/runtime/." "$DIR/"; then
 	exit 1
 fi
 chmod 755 "$DIR"/*.sh "$DIR/chargectl"
-. "$DIR/platform.sh"
-. "$DIR/settings.sh"
 
 # Nothing goes on the system partition of a Kindle we can't control.
 if ! "$DIR/chargectl" status >/dev/null 2>&1; then
@@ -60,11 +69,7 @@ if [ "$copied" != 0 ]; then
 fi
 udevadm control --reload-rules 2>/dev/null
 
-cp "$P"/scriptlets/chargelimit-*.sh "$DOCUMENTS/"
-
 "$DIR/launch.sh"
-
+. "$DIR/settings.sh"
 echo "chargelimit $(cat "$DIR/VERSION") is installed, with the charge limit at $LIMIT%."
-echo
 echo "It starts by itself whenever the Kindle restarts."
-echo "The Charge items in your library show what it's doing and change its settings. $USER_DIR_SHOWN/config has all of them."

@@ -40,6 +40,22 @@ next_limit() {
 	echo "${LIMITS%% *}"
 }
 
+# The menu's label for a setting, as "current setting - what a tap does": the
+# Kobo's NickelMenu items and the Kindle app's buttons. No ":" (NickelMenu
+# can't show it).
+label() {
+	case $1 in
+	toggle)
+		if [ "$ENABLED" = 1 ]; then echo "Limit on - turn off"; else echo "Limit off - turn on"; fi ;;
+	limit)
+		echo "Limit ${LIMIT}% - set $(next_limit)%" ;;
+	start)
+		if [ "$START" = 1 ]; then echo "On at restart - set off"; else echo "Off at restart - set on"; fi ;;
+	full)
+		if [ "$FULL_CHARGE" = 1 ]; then echo "Full charge on - cancel"; else echo "Full charge once"; fi ;;
+	esac
+}
+
 # Change one setting in the config in place, keeping the user's comments, and
 # in this shell. Fails while the user's storage is unavailable, where writing
 # would land under the bare mount point.
