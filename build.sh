@@ -1,8 +1,9 @@
 #!/bin/sh
 # Cross-compile chargectl (32-bit ARM, hard-float, static: it runs on the
 # Kobo Sage and the Kindle Paperwhite 11th gen alike), then let each platform
-# pack its package into build/. Needs Linux with gcc-arm-linux-gnueabihf and
-# GNU tar; .github/workflows/build.yml runs this on GitHub's Ubuntu runners.
+# pack its package into build/: KoboRoot.tgz, and the Kindle folder kindle/.
+# Needs Linux with gcc-arm-linux-gnueabihf and GNU tar; .github/workflows/build.yml
+# runs this on GitHub's Ubuntu runners.
 set -eu
 cd "$(dirname "$0")"
 
@@ -13,3 +14,4 @@ arm-linux-gnueabihf-strip build/chargectl
 git describe --always --dirty > build/VERSION
 
 sh platforms/kobo/package.sh
+sh platforms/kindle/package.sh

@@ -1,0 +1,4 @@
+# chargelimit: on every battery/charger event (plug, unplug, and about every
+# 256 s on their own), start the daemon if it isn't running, or signal it to
+# check now (see launch.sh). Starting at boot is the upstart job's.
+SUBSYSTEM=="power_supply", ACTION=="change", RUN+="/var/local/chargelimit/launch.sh"

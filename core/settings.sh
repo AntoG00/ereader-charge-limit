@@ -14,7 +14,9 @@ FULL_CHARGE=0
 DIAGNOSE=0
 UNINSTALL=0
 POLL=30
-WAKE_WHILE_CHARGING=1
+# Whether a reader needs the wake alarm depends on how it sleeps while
+# charging, so each platform.sh sets the default.
+WAKE_WHILE_CHARGING=$WAKE_WHILE_CHARGING_DEFAULT
 WAKE_INTERVAL=120
 [ -f "$CONFIG" ] && . "$CONFIG"
 

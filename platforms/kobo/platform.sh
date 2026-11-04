@@ -11,6 +11,9 @@ USER_DIR=/mnt/onboard/.adds/chargelimit
 # USER_DIR as users see it over USB, for messages.
 USER_DIR_SHOWN=.adds/chargelimit
 MENU=/mnt/onboard/.adds/nm/chargelimit
+# The wake alarm while charging (settings.sh). The Sage wakes itself every
+# ~87 s while plugged in, but other Kobos may sleep through a charge.
+WAKE_WHILE_CHARGING_DEFAULT=1
 
 # The USB partition is unmounted in USB mass-storage mode (.kobo is missing
 # then), and at boot until it's mounted.

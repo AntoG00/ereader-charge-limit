@@ -17,8 +17,8 @@ LIMIT=80
 FULL_CHARGE=0
 # Save a report for support requests as diagnostics.txt next to this file.
 DIAGNOSE=0
-# Remove kobo-chargelimit: turn charging back on and delete its files, its
-# menu and this folder.
+# Remove chargelimit: turn charging back on and delete its files, its
+# menu items and this folder.
 UNINSTALL=0
 
 # Advanced, uncomment to change.
@@ -26,6 +26,7 @@ UNINSTALL=0
 #POLL=30
 # While charging below LIMIT, wake a sleeping reader (screen and light stay
 # off) every WAKE_INTERVAL seconds to check, so it doesn't charge past LIMIT.
-# A fallback: some readers, like the Sage, already wake often enough.
+# A fallback, on by default on a Kobo, though some like the Sage already wake
+# often enough. Off by default on a Kindle, which stays awake while charging.
 #WAKE_WHILE_CHARGING=1
 #WAKE_INTERVAL=120
