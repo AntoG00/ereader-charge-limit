@@ -8,16 +8,16 @@
 # Kindle UI repaints over text drawn once within a second, so it's drawn
 # again every 2 s, with a countdown. The screen isn't closed by a tap: the
 # Kindle UI underneath would get the tap too, on a book or scriptlet you
-# can't see.
+# can't see. eips stops drawing a line at "%", and no escape (%%, \%) gets
+# one through, so it's spelled out: "80%" is shown as "80 percent".
 
 # Columns per line; longer lines wrap at a space.
 SHOW_WIDTH=40
 
 show() {
+	text=$(sed 's/%/ percent/g')
 	if command -v fold >/dev/null; then
-		text=$(fold -s -w "$SHOW_WIDTH")
-	else
-		text=$(cat)
+		text=$(printf '%s\n' "$text" | fold -s -w "$SHOW_WIDTH")
 	fi
 	eips -c >/dev/null
 	left=$1
