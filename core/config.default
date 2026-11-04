@@ -1,5 +1,5 @@
-# kobo-chargelimit settings. The NickelMenu items change them too; you can
-# also edit this file over USB. Changes apply within 30 seconds of ejecting.
+# chargelimit settings. The menu items change them too; you can also edit
+# this file over USB. Changes apply within 30 seconds of ejecting.
 # Delete this file to get the defaults back.
 
 # 1: the charge limit is on. 0: it's off and the reader charges to 100% like

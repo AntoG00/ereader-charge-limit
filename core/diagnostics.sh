@@ -1,32 +1,32 @@
 #!/bin/sh
 # Print a read-only report of what this reader offers for charge control, for
 # users to attach to a bug report or a request to support their device. It
-# never writes to the chip. The daemon saves it to the USB drive. On a reader
+# never writes to the chip. The daemon saves it in USER_DIR. On a reader
 # with neither a "charging" file nor a known chip, it should show enough to
 # find another switch: writable attributes, the driver's device folder, its
 # register dump, /dev/i2c nodes and the kernel's drivers.
 
-DIR=/usr/local/chargelimit
+DIR=$(cd "$(dirname "$0")" && pwd)
+. "$DIR/platform.sh"
 
 section() {
 	echo
 	echo "== $1 =="
 }
 
-echo "kobo-chargelimit diagnostics"
+echo "chargelimit diagnostics"
 echo "version: $(cat "$DIR/VERSION" 2>/dev/null)"
 echo "date: $(date '+%F %T %Z')"
 
 section "verdict"
-if "$DIR/kobo-chg" status 2>&1; then
+if "$DIR/chargectl" status 2>&1; then
 	echo "supported: yes"
 else
 	echo "supported: no"
 fi
 
-# The first field of .kobo/version is the serial number; leave it out.
 section "device"
-echo "kobo version: $(cut -d, -f2- /mnt/onboard/.kobo/version 2>/dev/null)"
+device_info
 echo "kernel: $(uname -a)"
 grep -E '^(Hardware|Revision)' /proc/cpuinfo
 
@@ -93,7 +93,7 @@ for r in /sys/class/rtc/*; do
 done
 
 section "settings"
-cat /mnt/onboard/.adds/chargelimit/config 2>/dev/null || echo "(no config file, defaults)"
+cat "$USER_DIR/config" 2>/dev/null || echo "(no config file, defaults)"
 
 section "log"
 tail -n 50 /tmp/chargelimit.log 2>/dev/null

@@ -1,22 +1,24 @@
 #!/bin/sh
-# Keep a Kobo's battery between RESUME and LIMIT percent while plugged in. At
-# LIMIT charging is switched off and the reader runs from USB. kobo-chg works
-# out how this reader's charging can be controlled; on a reader where it
+# Keep a reader's battery between RESUME and LIMIT percent while plugged in.
+# At LIMIT charging is switched off and the reader runs from USB. chargectl
+# works out how this reader's charging can be controlled; on a reader where it
 # can't, the daemon only writes diagnostics and idles. It keeps running while
 # the limit is off (ENABLED=0), only making sure charging is on, so turning
-# it back on in the config applies within POLL seconds.
+# it back on in the config applies within POLL seconds. What differs between
+# readers (paths, menu, uninstall) comes from platform.sh.
 
-DIR=/usr/local/chargelimit
-CHG=$DIR/kobo-chg
-USER_DIR=/mnt/onboard/.adds/chargelimit
+DIR=$(cd "$(dirname "$0")" && pwd)
+CHG=$DIR/chargectl
 WAKEALARM=/sys/class/rtc/rtc0/wakealarm
 # Full technical log, for diagnostics and reports.
 LOG=/tmp/chargelimit.log
-# A few plain-language events for the menu's activity view (ctl.sh).
+# A few plain-language events for the menu's activity view (actions.sh).
 ACTIVITY=/tmp/chargelimit.activity
 LOCK=/tmp/chargelimitd.lock
 # Created once START has been applied this boot; /tmp is cleared on reboot.
 BOOTED=/tmp/chargelimit.booted
+
+. "$DIR/platform.sh"
 
 # The settings come from settings.sh, re-sourced every check; this is only
 # for the checks before the config is first readable.
@@ -63,11 +65,11 @@ stop() {
 trap stop TERM INT
 
 while :; do
-	# The user partition is unmounted while the reader is in USB mass-storage
-	# mode (.kobo is missing then); the last settings read stay in effect
-	# until it's back. At boot it may not be mounted yet, and ENABLED isn't
-	# known until it is, so wait for the first read before doing anything.
-	if [ -d /mnt/onboard/.kobo ]; then
+	# The user's storage can be unavailable, for example on a Kobo in USB
+	# mass-storage mode; the last settings read stay in effect until it's
+	# back. At boot it may not be mounted yet, and ENABLED isn't known until
+	# it is, so wait for the first read before doing anything.
+	if storage_ready; then
 		# Once per run: give users a commented config to find and edit,
 		# apply START once per boot (the marker stops a daemon restarted
 		# later in the same boot from applying it again), and refresh the
@@ -82,7 +84,7 @@ while :; do
 				[ "$ENABLED" = "$START" ] || set_setting ENABLED "$START"
 				: > "$BOOTED"
 			fi
-			"$DIR/ctl.sh" menu
+			"$DIR/actions.sh" menu
 		fi
 		. "$DIR/settings.sh"
 		config_read=1
@@ -92,15 +94,15 @@ while :; do
 	fi
 	if [ "$UNINSTALL" = 1 ]; then
 		"$CHG" on
-		rm -f /etc/udev/rules.d/99-chargelimit.rules /mnt/onboard/.adds/nm/chargelimit
+		platform_uninstall
 		rm -rf "$USER_DIR" "$DIR" "$LOCK" "$BOOTED"
 		log "uninstalled"
 		exit 0
 	fi
 
-	# Diagnostics go to the USB drive once per boot, and again whenever the
-	# user sets DIAGNOSE=1.
-	if [ -d /mnt/onboard/.kobo ] && { [ -z "$diag_saved" ] || [ "$DIAGNOSE" = 1 ]; }; then
+	# Diagnostics go to the user's storage once per boot, and again whenever
+	# the user sets DIAGNOSE=1.
+	if storage_ready && { [ -z "$diag_saved" ] || [ "$DIAGNOSE" = 1 ]; }; then
 		mkdir -p "$USER_DIR"
 		"$DIR/diagnostics.sh" > "$USER_DIR/diagnostics.txt" 2>&1
 		[ "$DIAGNOSE" = 1 ] && set_setting DIAGNOSE 0
@@ -140,7 +142,7 @@ while :; do
 
 	# Nothing switches charging off while unplugged, so once it's on after an
 	# unplug it stays on until the next plug-in. That covers readers where
-	# kobo-chg can't read the state while unplugged (charging_enabled=unknown).
+	# chargectl can't read the state while unplugged (charging_enabled=unknown).
 	if [ "$plugged" = 1 ]; then
 		on_since_unplug=
 	elif [ -n "$on_since_unplug" ]; then
@@ -157,7 +159,7 @@ while :; do
 		full_plugged=1
 	elif [ -n "$full_plugged" ] && set_setting FULL_CHARGE 0; then
 		full_plugged=
-		"$DIR/ctl.sh" menu
+		"$DIR/actions.sh" menu
 	fi
 
 	# Only "limiting" holds the battery below 100%. Each change is reported
@@ -217,7 +219,7 @@ while :; do
 	# while plugged in, which comes first, and every wake-up clears the alarm,
 	# so it's set again after each one. With charging off the battery can't
 	# climb, and without the limit there's nothing to stop, so no alarm is
-	# needed. Only set when no alarm is pending, to leave Nickel's own alone.
+	# needed. Only set when no alarm is pending, to leave the system's own alone.
 	if [ "$WAKE_WHILE_CHARGING" = 1 ] && [ -n "$limiting" ] && [ "$plugged" = 1 ] &&
 	   [ "$want" = 1 ] && [ -z "$(cat "$WAKEALARM" 2>/dev/null)" ]; then
 		if (echo "+$WAKE_INTERVAL" > "$WAKEALARM") 2>/dev/null; then

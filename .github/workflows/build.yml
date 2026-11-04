@@ -21,7 +21,7 @@ jobs:
 
       - name: Check binary and package
         run: |
-          file build/rootfs/usr/local/chargelimit/kobo-chg
+          file build/chargectl
           tar -tvzf build/KoboRoot.tgz
 
       - uses: actions/upload-artifact@v4

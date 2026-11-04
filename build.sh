@@ -1,23 +1,15 @@
 #!/bin/sh
-# Cross-compile kobo-chg for the Sage (32-bit ARM, hard-float) and pack
-# build/KoboRoot.tgz. Needs Linux with gcc-arm-linux-gnueabihf and GNU tar;
-# .github/workflows/build.yml runs this on GitHub's Ubuntu runners.
+# Cross-compile chargectl (32-bit ARM, hard-float, static: it runs on the
+# Kobo Sage and the Kindle Paperwhite 11th gen alike), then let each platform
+# pack its package into build/. Needs Linux with gcc-arm-linux-gnueabihf and
+# GNU tar; .github/workflows/build.yml runs this on GitHub's Ubuntu runners.
 set -eu
 cd "$(dirname "$0")"
 
-rm -rf build && mkdir -p build/rootfs
-cp -R rootfs/. build/rootfs/
-arm-linux-gnueabihf-gcc -static -Os -Wall -Wextra -Werror \
-	-o build/rootfs/usr/local/chargelimit/kobo-chg src/kobo-chg.c
-arm-linux-gnueabihf-strip build/rootfs/usr/local/chargelimit/kobo-chg
-chmod 755 build/rootfs/usr/local/chargelimit/*
+rm -rf build && mkdir -p build
+arm-linux-gnueabihf-gcc -static -Os -Wall -Wextra -Werror -o build/chargectl src/chargectl.c
+arm-linux-gnueabihf-strip build/chargectl
 # Logged at startup and in diagnostics, so reports say which build they came from.
-git describe --always --dirty > build/rootfs/usr/local/chargelimit/VERSION
-chmod 644 build/rootfs/usr/local/chargelimit/VERSION build/rootfs/usr/local/chargelimit/config.default \
-	build/rootfs/usr/local/chargelimit/settings.sh build/rootfs/etc/udev/rules.d/99-chargelimit.rules
+git describe --always --dirty > build/VERSION
 
-# List only our own paths so extracting over / never touches the modes of
-# existing directories like /etc or /usr.
-tar -czf build/KoboRoot.tgz -C build/rootfs --owner=0 --group=0 \
-	etc/udev/rules.d/99-chargelimit.rules usr/local/chargelimit
-echo "Built build/KoboRoot.tgz"
+sh platforms/kobo/package.sh

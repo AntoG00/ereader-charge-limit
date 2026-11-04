@@ -1,8 +1,11 @@
-# Sourced by chargelimitd.sh and ctl.sh: the defaults, then the user's config
-# on top. Re-sourcing it picks up config changes, including removed lines.
-# The config is the only place settings live: the menu edits it too.
+# Sourced by chargelimitd.sh and actions.sh, after platform.sh: the defaults,
+# then the user's config on top. Re-sourcing it picks up config changes,
+# including removed lines. The config is the only place settings live: the
+# menu edits it too.
 
-CONFIG=/mnt/onboard/.adds/chargelimit/config
+CONFIG=$USER_DIR/config
+# The choices the menu cycles LIMIT through.
+LIMITS="70 80 90"
 
 ENABLED=1
 START=1
@@ -26,11 +29,20 @@ esac
 [ "$START" = 0 ] || START=1
 RESUME=$((LIMIT - 5))
 
+# The next choice after the current LIMIT, wrapping around; a hand-edited
+# LIMIT that isn't one of the choices goes to the next one above it.
+next_limit() {
+	for l in $LIMITS; do
+		[ "$l" -gt "$LIMIT" ] && { echo "$l"; return; }
+	done
+	echo "${LIMITS%% *}"
+}
+
 # Change one setting in the config in place, keeping the user's comments, and
-# in this shell. Fails while the user partition is unmounted (USB
-# mass-storage mode), where writing would land under the bare mount point.
+# in this shell. Fails while the user's storage is unavailable, where writing
+# would land under the bare mount point.
 set_setting() {
-	[ -d /mnt/onboard/.kobo ] || return 1
+	storage_ready || return 1
 	mkdir -p "${CONFIG%/*}"
 	if grep -q "^$1=" "$CONFIG" 2>/dev/null; then
 		sed "s/^$1=.*/$1=$2/" "$CONFIG" > "/tmp/chargelimit.config.$$" &&

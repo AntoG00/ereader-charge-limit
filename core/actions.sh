@@ -1,14 +1,14 @@
 #!/bin/sh
-# The actions behind the NickelMenu items, in plain language:
+# The actions behind the menu items (NickelMenu on a Kobo), in plain language:
 #
-#   ctl.sh status     settings, battery and what charging is doing
-#   ctl.sh toggle     flip ENABLED: the limit on or off
-#   ctl.sh limit      cycle LIMIT through 70, 80, 90
-#   ctl.sh start      flip START: what ENABLED becomes at each restart
-#   ctl.sh full       flip FULL_CHARGE: charge to 100% until unplugged
-#   ctl.sh activity   recent events, written by the daemon
-#   ctl.sh diagnose   save the diagnostics report to the USB drive
-#   ctl.sh menu       rewrite the NickelMenu file to show the current settings
+#   actions.sh status     settings, battery and what charging is doing
+#   actions.sh toggle     flip ENABLED: the limit on or off
+#   actions.sh limit      cycle LIMIT through LIMITS (settings.sh)
+#   actions.sh start      flip START: what ENABLED becomes at each restart
+#   actions.sh full       flip FULL_CHARGE: charge to 100% until unplugged
+#   actions.sh activity   recent events, written by the daemon
+#   actions.sh diagnose   save the diagnostics report to the user's storage
+#   actions.sh menu       refresh the menu to show the current settings
 #
 # Every setting lives in the config, so the menu and hand edits behave the
 # same; the daemon picks changes up at once because launch.sh signals it.
@@ -16,62 +16,16 @@
 # keep the technical detail. Every action exits 0, because NickelMenu shows
 # an error box instead of the output otherwise.
 
-DIR=/usr/local/chargelimit
-USER_DIR=/mnt/onboard/.adds/chargelimit
+DIR=$(cd "$(dirname "$0")" && pwd)
 ACTIVITY=/tmp/chargelimit.activity
-MENU=/mnt/onboard/.adds/nm/chargelimit
-LIMITS="70 80 90"
 
+. "$DIR/platform.sh"
 . "$DIR/settings.sh"
-
-# The next choice after the current LIMIT, wrapping around; a hand-edited
-# LIMIT that isn't one of the choices goes to the next one above it.
-next_limit() {
-	for l in $LIMITS; do
-		[ "$l" -gt "$LIMIT" ] && { echo "$l"; return; }
-	done
-	echo "${LIMITS%% *}"
-}
-
-# NickelMenu re-reads its files whenever the menu opens, so the labels can
-# show the current settings. Labels can't contain ":". Only written when it
-# changed, to spare the flash and NickelMenu's reloads; skipped if
-# NickelMenu isn't installed.
-write_menu() {
-	[ -d "${MENU%/*}" ] || return 0
-	if [ "$ENABLED" = 1 ]; then
-		onoff="Limit on - turn off"
-	else
-		onoff="Limit off - turn on"
-	fi
-	if [ "$START" = 1 ]; then
-		start="On at restart - set off"
-	else
-		start="Off at restart - set on"
-	fi
-	if [ "$FULL_CHARGE" = 1 ]; then
-		full="Full charge on - cancel"
-	else
-		full="Full charge once"
-	fi
-	cat > /tmp/chargelimit.menu <<EOF
-# Written by kobo-chargelimit whenever its settings change; edits are lost.
-menu_item :main :Charge status :cmd_output :5000:$DIR/ctl.sh status
-menu_item :main :$onoff :cmd_output :5000:$DIR/ctl.sh toggle
-menu_item :main :Limit ${LIMIT}% - set $(next_limit)% :cmd_output :5000:$DIR/ctl.sh limit
-menu_item :main :$start :cmd_output :5000:$DIR/ctl.sh start
-menu_item :main :$full :cmd_output :5000:$DIR/ctl.sh full
-menu_item :main :Charge activity :cmd_output :5000:$DIR/ctl.sh activity
-menu_item :main :Charge diagnostics :cmd_output :9000:$DIR/ctl.sh diagnose
-EOF
-	cmp -s /tmp/chargelimit.menu "$MENU" || cp /tmp/chargelimit.menu "$MENU"
-	rm -f /tmp/chargelimit.menu
-}
 
 # After a setting changed: the daemon applies it now, and the labels follow.
 apply() {
 	"$DIR/launch.sh"
-	write_menu
+	refresh_menu
 }
 
 # Battery power in watts from voltage (uV) and current (uA), as "0.48".
@@ -92,7 +46,7 @@ limit_line() {
 }
 
 status() {
-	if ! s=$("$DIR/kobo-chg" status 2>/dev/null); then
+	if ! s=$("$DIR/chargectl" status 2>/dev/null); then
 		echo "This reader isn't supported yet."
 		echo "Tap \"Charge diagnostics\" and send the file it saves."
 		return
@@ -147,7 +101,7 @@ start() {
 		echo "From the next restart, the charge limit turns off whenever the reader starts."
 	fi
 	echo "Until then it stays as it is."
-	write_menu
+	refresh_menu
 }
 
 full() {
@@ -186,9 +140,9 @@ diagnose)
 	else
 		echo "This reader isn't supported yet."
 	fi
-	echo "Report saved as .adds/chargelimit/diagnostics.txt on the USB drive."
+	echo "Report saved as $USER_DIR_SHOWN/diagnostics.txt on the USB drive."
 	echo "Connect the reader to a computer to copy it."
 	;;
-menu) write_menu ;;
+menu) refresh_menu ;;
 esac
 exit 0

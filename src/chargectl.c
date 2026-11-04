@@ -1,17 +1,18 @@
 /*
- * kobo-chg: read or toggle a Kobo's charge enable from userspace, while the
- * stock driver stays bound to the PMIC.
+ * chargectl: read or toggle an e-reader's charge enable from userspace, while
+ * the stock driver stays bound to the PMIC.
  *
- *   kobo-chg status   prints shell-evaluable key=value lines; exits 1 if
+ *   chargectl status  prints shell-evaluable key=value lines; exits 1 if
  *                     this reader has no supported charge control
- *   kobo-chg on       allow charging (stock behaviour)
- *   kobo-chg off      stop charging; the device keeps running from USB
+ *   chargectl on      allow charging (stock behaviour)
+ *   chargectl off     stop charging; the device keeps running from USB
  *
  * Two ways to control charging, chosen by what the reader offers:
  *
- *   sysfs     the battery power_supply has a "charging" file (Kobo's
- *             bd71827-power driver, on BD7182x readers). The driver does
- *             the register update under its own lock.
+ *   sysfs     the battery power_supply has a "charging" file (the
+ *             bd71827-power driver on BD7182x readers, in Kobos and
+ *             Kindles). The driver does the register update under its own
+ *             lock.
  *   register  a known PMIC on I2C, found by its driver's name. Used when
  *             there's no "charging" file, or when writing it didn't take.
  *
@@ -133,11 +134,16 @@ static void open_pmic(void)
 	if (bus < 0)
 		return;
 
+	/*
+	 * Kindles have the BD71828 but no /dev/i2c nodes: no register access,
+	 * which is expected there and not worth a message on every call.
+	 */
 	char dev[32];
 	snprintf(dev, sizeof(dev), "/dev/i2c-%d", bus);
 	fd = open(dev, O_RDWR);
 	if (fd < 0) {
-		perror(dev);
+		if (errno != ENOENT)
+			perror(dev);
 		pmic = NULL;
 	}
 }
