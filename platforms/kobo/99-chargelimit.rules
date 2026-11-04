@@ -1,4 +1,4 @@
-# kobo-chargelimit
+# ereader-charge-limit
 # Start at boot: loop0 is set up once per boot (the same hook kfmon uses).
 KERNEL=="loop0", RUN+="/usr/local/chargelimit/launch.sh"
 # On every battery/charger event, start the daemon if the boot hook didn't, or

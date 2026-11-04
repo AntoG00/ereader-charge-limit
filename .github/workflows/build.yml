@@ -1,13 +1,30 @@
 name: Build
 
+# Every push and pull request builds both packages, except when it only
+# changes documentation. A tag vMAJOR.MINOR.PATCH also builds (path filters
+# don't apply to tags) and publishes a release with its notes from
+# .github/release-notes/<tag>.md.
 on:
-  push:
-  pull_request:
   workflow_dispatch:
+  push:
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "LICENSE"
+  pull_request:
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+      - "LICENSE"
+
+permissions:
+  contents: read
 
 jobs:
   build:
     runs-on: ubuntu-24.04
+    outputs:
+      is_release: ${{ steps.version.outputs.is_release }}
     steps:
       - uses: actions/checkout@v4
 
@@ -16,25 +33,81 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends gcc-arm-linux-gnueabihf libc6-dev-armhf-cross
 
+      # A release tag v1.2.3 gives 1.2.3 and a release. Every other build,
+      # including other tags, is 0.0.<run number>, which goes up by one with
+      # each run of this workflow. A tag starting with "v" that isn't
+      # vMAJOR.MINOR.PATCH is most likely a mistyped release, so it fails.
+      - name: Determine version
+        id: version
+        run: |
+          is_release=false
+          VERSION=0.0.$GITHUB_RUN_NUMBER
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            if printf '%s\n' "$GITHUB_REF_NAME" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+              VERSION=${GITHUB_REF_NAME#v}
+              is_release=true
+            elif printf '%s\n' "$GITHUB_REF_NAME" | grep -q '^v'; then
+              echo "::error::Release tags must be vMAJOR.MINOR.PATCH, not '$GITHUB_REF_NAME'."
+              exit 1
+            fi
+          fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "is_release=$is_release" >> "$GITHUB_OUTPUT"
+
       - name: Build
         run: sh build.sh
 
-      - name: Check binary and package
+      - name: Check binary and packages
         run: |
+          cat build/VERSION
           file build/chargectl
           tar -tvzf build/KoboRoot.tgz
-          find build/kindle -type f | sort
+          find build/dist -type f | sort
+
+      # GitHub zips each artifact, so these download as charge-limit-<version>-kobo.zip
+      # and charge-limit-<version>-kindle.zip, laid out like the release ZIPs.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: charge-limit-${{ env.VERSION }}-kobo
+          path: build/dist/charge-limit-${{ env.VERSION }}-kobo/
+          # .kobo/ is a hidden folder.
+          include-hidden-files: true
+          if-no-files-found: error
 
       - uses: actions/upload-artifact@v4
         with:
-          name: KoboRoot
-          path: build/KoboRoot.tgz
+          name: charge-limit-${{ env.VERSION }}-kindle
+          path: build/dist/charge-limit-${{ env.VERSION }}-kindle/
           if-no-files-found: error
 
-      # The artifact's zip is the package: its documents/ and chargelimit/
-      # go to the top of the Kindle's storage.
+      # The ZIPs themselves, for the release job.
       - uses: actions/upload-artifact@v4
         with:
-          name: Kindle-experimental
-          path: build/kindle/
+          name: release-zips
+          path: build/dist/*.zip
           if-no-files-found: error
+
+  release:
+    needs: build
+    if: needs.build.outputs.is_release == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      # For the release notes file.
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-zips
+          path: release
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/*.zip \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Charge limit $GITHUB_REF_NAME" \
+            --notes-file ".github/release-notes/$GITHUB_REF_NAME.md" \
+            --verify-tag
