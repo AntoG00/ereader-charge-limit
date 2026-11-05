@@ -423,6 +423,8 @@ run() {
 	echo $$ > "$W/pid"
 	# Everything from $DIR is read now, while storage is there.
 	version=$(cat "$DIR/VERSION" 2>/dev/null)
+	# Before stopping a daemon, so its state is in the report.
+	sh "$DIR/diagnostics.sh" > "$W/diagnostics" 2>&1
 	# On a supported reader (the dev test) the daemon would undo the switch
 	# test: stop it; it doesn't start again while this runs (our pid file)
 	# and is started again at the end. On an unsupported one it only idles.
@@ -441,7 +443,6 @@ run() {
 	fi
 	battery=$(find_battery)
 	power_dirs > "$W/dirs"
-	sh "$DIR/diagnostics.sh" > "$W/diagnostics" 2>&1
 
 	say "$STEP1"
 	wait_for unplugged 300 || note "still plugged in after 5 minutes"
@@ -461,7 +462,8 @@ Next: Charge Limit tests the charging for a few minutes."
 		events start unplug
 		say "$STEP4"
 		wait_for unplugged 1800 || note "not unplugged within 30 minutes"
-		sleep 5
+		# The charger's own events can come seconds after the battery's.
+		sleep 15
 		events stop
 		snapshot > "$W/c"
 	else
