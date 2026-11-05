@@ -1,2 +1,6 @@
 # Check now on every battery or charger event.
 SUBSYSTEM=="power_supply", ACTION=="change", RUN+="/var/local/chargelimit/launch.sh"
+# The MAX77696 charger (Kindle Paperwhite 7th gen) reports plug and unplug
+# as add and remove on its platform device instead.
+SUBSYSTEM=="platform", KERNEL=="max77696-charger.0", ACTION=="add", RUN+="/var/local/chargelimit/launch.sh"
+SUBSYSTEM=="platform", KERNEL=="max77696-charger.0", ACTION=="remove", RUN+="/var/local/chargelimit/launch.sh"

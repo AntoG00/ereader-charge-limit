@@ -28,7 +28,7 @@ chip=
 for d in /sys/bus/i2c/devices/*; do
 	name=$(cat "$d/name" 2>/dev/null)
 	case $name in
-	bd71815 | bd71827 | bd71828 | ricoh619 | rc5t619) ;;
+	bd71815 | bd71827 | bd71828 | ricoh619 | rc5t619 | max77696) ;;
 	*) continue ;;
 	esac
 	drv=$(readlink -f "$d/driver")
@@ -44,6 +44,10 @@ for s in /sys/class/power_supply/*; do
 	if [ -e "$s/charging" ]; then sw=yes; else sw=no; fi
 	echo "Battery: ${s##*/} (driver ${drv:-none}, charging switch: $sw)"
 done
+# The MAX77696's switch is in Lab126's sysdev, not on the battery.
+w=/sys/devices/system/wario_charger/wario_charger0
+[ -e "$w/mode" ] &&
+	echo "Charger: wario_charger0 (mode $(cat "$w/mode" 2>/dev/null), connected $(cat "$w/connected" 2>/dev/null))"
 
 section "device"
 device_info
@@ -89,6 +93,19 @@ for s in /sys/class/power_supply/*; do
 	seen="$seen $d"
 	echo "[$d]"
 	attrs "$d"
+done
+
+# Vendor drivers can put their controls here instead (Lab126's
+# wario_charger, wario_battery on a Kindle Paperwhite 7th gen).
+section "system devices"
+ls /sys/devices/system 2>&1 | tr '\n' ' '
+echo
+for d in /sys/devices/system/*charg* /sys/devices/system/*batt*; do
+	for dev in "$d"/*; do
+		[ -d "$dev" ] || continue
+		echo "[$dev]"
+		attrs "$dev"
+	done
 done
 
 section "drivers"

@@ -9,8 +9,19 @@
  * Methods:
  *   sysfs     the battery's "charging" file (the BD7182x driver,
  *             bd71827-power, on Kobos and Kindles)
+ *   wario     the MAX77696 charger's controls in Lab126's sysdev (Kindle
+ *             Paperwhite 7th gen; drivers/power/max77696-charger.c)
  *   register  a known PMIC's charge-enable bit over I2C, when there's no
  *             "charging" file or writing it didn't take
+ *
+ * Maxim MAX77696, CHG_CNFG_00 MODE as the "mode" file shows it:
+ *   5 DC-DC buck + charger (normal), 4 buck only, 0 both off.
+ * Off is 4: the buck keeps powering the reader from USB while the battery
+ * rests. The driver's own "charging"/"allow_charging" = 0 gives 0, which
+ * runs the reader from the battery. On is "allow_charging" = 1, the
+ * driver's path back to 5. The driver doesn't set MODE at boot, so a held
+ * 4 can outlive a restart: callers switch it on before they stop.
+ * Its battery driver (max77696-battery) reports mV and mA.
  *
  * ROHM BD71828 (mainline Linux rohm-bd71828.h):
  *   0x6F CHG_EN bit 0, 0x68 DCIN_STAT bit 0, 0x65 CHG_STATE bits 6:0
@@ -42,6 +53,9 @@
  * snprintf never truncates. */
 #define SUPPLY_DIR_LEN (sizeof(SUPPLIES) + 1 + 255)
 #define SUPPLY_PATH_LEN (SUPPLY_DIR_LEN + 16)
+#define WARIO "/sys/devices/system/wario_charger/wario_charger0"
+#define WARIO_MODE_ON "5"
+#define WARIO_MODE_OFF "4"
 
 #define RETRIES 20
 #define RETRY_DELAY_US 50000
@@ -68,7 +82,9 @@ static uint16_t addr;
 
 static char battery[SUPPLY_DIR_LEN];	/* battery power_supply dir, "" if none */
 static char charging_attr[SUPPLY_PATH_LEN];	/* its "charging" file, "" if none */
-static int plugged;		/* some other power_supply is online */
+static int plugged;		/* another power_supply online, or MAX77696 connected */
+static int milli_units;		/* the battery reports mV and mA, not uV and uA */
+static int wario;		/* the MAX77696 charger's sysdev is there */
 
 static uint8_t reg_banksel = REG_BANKSEL;
 
@@ -170,6 +186,20 @@ static void find_supplies(void)
 		}
 	}
 	closedir(dir);
+	milli_units = strcmp(battery, SUPPLIES "/max77696-battery") == 0;
+}
+
+/* The MAX77696's "connected" (charger input present) is the plug: its
+ * power_supply's "online" is the driver's charger-enabled flag. */
+static void find_wario(void)
+{
+	char val[8];
+
+	if (access(WARIO "/mode", F_OK) != 0)
+		return;
+	wario = 1;
+	if (read_line(WARIO "/connected", val, sizeof(val)) == 0)
+		plugged = strcmp(val, "1") == 0;
 }
 
 static const char *method(void)
@@ -178,6 +208,8 @@ static const char *method(void)
 		return "none";
 	if (charging_attr[0])
 		return "sysfs";
+	if (wario)
+		return "wario";
 	return pmic ? "register" : "none";
 }
 
@@ -267,18 +299,18 @@ static uint8_t with_charging(uint8_t v, int enable)
 	return enable ? (v | pmic->en_bits) : (v & ~pmic->en_bits);
 }
 
-static int write_charging_attr(int enable)
+static int write_attr(const char *path, const char *val)
 {
-	int afd = open(charging_attr, O_WRONLY);
+	int afd = open(path, O_WRONLY);
 
 	if (afd < 0) {
-		perror(charging_attr);
+		perror(path);
 		return -1;
 	}
-	ssize_t n = write(afd, enable ? "1" : "0", 1);
+	ssize_t n = write(afd, val, strlen(val));
 	close(afd);
-	if (n != 1) {
-		perror(charging_attr);
+	if (n != (ssize_t)strlen(val)) {
+		perror(path);
 		return -1;
 	}
 	return 0;
@@ -294,24 +326,41 @@ static int read_charging_attr(void)
 	return strcmp(val, "0") != 0;
 }
 
+/* The driver accepts any write, so the mode read back is the check. */
+static int set_wario(int enable)
+{
+	char mode[8];
+
+	if (write_attr(enable ? WARIO "/allow_charging" : WARIO "/mode",
+		       enable ? "1" : WARIO_MODE_OFF) == 0 &&
+	    read_line(WARIO "/mode", mode, sizeof(mode)) == 0 &&
+	    strcmp(mode, enable ? WARIO_MODE_ON : WARIO_MODE_OFF) == 0)
+		return 0;
+	fprintf(stderr, WARIO "/mode did not take effect\n");
+	return -1;
+}
+
 /*
  * Prefer the driver's file, checked against the register when the PMIC is
  * known. In the register loop, a pass with nothing to do is the check.
  */
 static int set_charging(int enable)
 {
+	if (strcmp(method(), "wario") == 0)
+		return set_wario(enable);
 	if (charging_attr[0]) {
 		uint8_t cur;
+		const char *val = enable ? "1" : "0";
 
 		if (!pmic) {
 			/* Unplugged, the file can't be read back (see print_status). */
-			if (write_charging_attr(enable) == 0 &&
+			if (write_attr(charging_attr, val) == 0 &&
 			    (!plugged || read_charging_attr() == enable))
 				return 0;
 			fprintf(stderr, "%s did not take effect\n", charging_attr);
 			return -1;
 		}
-		if (write_charging_attr(enable) == 0 &&
+		if (write_attr(charging_attr, val) == 0 &&
 		    read_reg_retry(pmic->ctl_reg, &cur) == 0 &&
 		    with_charging(cur, enable) == cur)
 			return 0;
@@ -343,9 +392,19 @@ static int set_charging(int enable)
 	return -1;
 }
 
+/* A battery reading in micro units, scaled from milli where needed. */
+static void print_micro(const char *key, const char *val)
+{
+	if (milli_units)
+		printf("%s=%ld\n", key, strtol(val, NULL, 10) * 1000);
+	else
+		printf("%s=%s\n", key, val);
+}
+
 /*
  * method, pmic, battery, plugged, capacity, voltage_uv, current_ua,
- * charging_enabled; ctl, pmic_plugged and charge_state with a known PMIC.
+ * charging_enabled; ctl, pmic_plugged and charge_state with a known PMIC;
+ * charger_mode with the wario method.
  */
 static int print_status(void)
 {
@@ -362,11 +421,11 @@ static int print_status(void)
 			printf("capacity=%s\n", val);
 		snprintf(path, sizeof(path), "%s/voltage_now", battery);
 		if (read_line(path, val, sizeof(val)) == 0)
-			printf("voltage_uv=%s\n", val);
+			print_micro("voltage_uv", val);
 		/* Negative while discharging. current_avg lags by minutes. */
 		snprintf(path, sizeof(path), "%s/current_now", battery);
 		if (read_line(path, val, sizeof(val)) == 0)
-			printf("current_ua=%s\n", val);
+			print_micro("current_ua", val);
 	}
 	if (pmic) {
 		uint8_t ctl, dcin, state;
@@ -379,6 +438,11 @@ static int print_status(void)
 		printf("ctl=0x%02x\n", ctl);
 		printf("pmic_plugged=%d\n", (dcin & pmic->dcin_mask) != 0);
 		printf("charge_state=0x%02x\n", state & pmic->state_mask);
+	} else if (strcmp(method(), "wario") == 0) {
+		if (read_line(WARIO "/mode", val, sizeof(val)) < 0)
+			return -1;
+		printf("charger_mode=%s\n", val);
+		enabled = strcmp(val, WARIO_MODE_ON) == 0;
 	} else if (charging_attr[0] && !plugged) {
 		printf("charging_enabled=unknown\n");
 		return 0;
@@ -397,6 +461,7 @@ int main(int argc, char **argv)
 		return 2;
 	}
 	find_supplies();
+	find_wario();
 	open_pmic();
 
 	if (strcmp(argv[1], "status") == 0)

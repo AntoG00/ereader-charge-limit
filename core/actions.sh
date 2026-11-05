@@ -127,7 +127,7 @@ diagnose)
 	else
 		echo "This reader isn't supported yet."
 	fi
-	grep -E '^(Power chip|Battery): ' "$USER_DIR/diagnostics.log"
+	grep -E '^(Power chip|Battery|Charger): ' "$USER_DIR/diagnostics.log"
 	echo "Report saved as ${USER_DIR##*/}/diagnostics.log on the USB drive."
 	echo "Connect the reader to a computer to copy it."
 	;;
