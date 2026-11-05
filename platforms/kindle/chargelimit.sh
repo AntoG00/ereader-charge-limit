@@ -1,5 +1,5 @@
 #!/bin/sh
-# Name: Charge limit
+# Name: Charge Limit
 # DontUseFBInk
 
 UI=/mnt/us/extensions/chargelimit/ui

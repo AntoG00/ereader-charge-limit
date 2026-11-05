@@ -1,19 +1,19 @@
-# Charge limit
+# Charge Limit
 
-Let's you limit your e-reader's maximum charging percentage to preserve its battery health.
+Lets you limit your e-reader's maximum charging percentage to preserve its battery health.
 
-This doesn't KOReader or any other dependency, so you can keep using the native reading experience.
+It doesn't need KOReader or any other dependency, so you can keep using the native reading experience.
 
 ## Why I built this and why you might want to use it
 
 Lithium-ion batteries wear faster when they are charged to 100%, and while phones and laptops might already offer a charge limit, e-readers don't seem to do that.
 
-A lot of time I use my e-reader on a stand while plugged in while I'm at my desk or as a bedside reader. However, by doing this it keeps the battery level at 100% and it keeps using energy from the battery instead of the charger, so the battery is being used while being charged.
+A lot of the time I use my e-reader on a stand, plugged in, at my desk or as a bedside reader. However, by doing this it keeps the battery level at 100% and it keeps using energy from the battery instead of the charger, so the battery is being used while being charged.
 
-Because of this, I created this tool that sets a charge limit (80%) while allowing the e-reader to use power directly from the charger bypassing the battery, so there is no additional wear when not necessary. This way I hope to not need to replace its battery anytime soon as a quick search showed it to be basically impossible.
+Because of this, I created this tool that sets a charge limit (80%) while allowing the e-reader to use power directly from the charger bypassing the battery, so there is no additional wear when not necessary. This way I hope to not need to replace its battery any time soon, as a quick search showed it to be basically impossible. It works with the reader's own software and keeps working in the background, while the reader sleeps and after a restart.
 
 <p align="center">
-  <img src="assets/kindle.png" alt="The Charge limit app on a Kindle" width="300">
+  <img src="assets/kindle.png" alt="The Charge Limit app on a Kindle" width="300">
   <img src="assets/kobo.png" alt="Charge status on a Kobo" width="300">
 </p>
 
@@ -32,10 +32,10 @@ Because of this, I created this tool that sets a charge limit (80%) while allowi
 
 ## Supported e-readers
 
-Charge limit switches charging off and on through the power chip's driver, so support depends on the chip and its driver.
+Charge Limit switches charging off and on through the power chip's driver, so support depends on the chip and its driver.
 
 This tool has been tested on Kobo and Kindle devices:
-- NickelMenu **is not required** on the Kobo in order for this tool to work. However, without NickelMenu you won't be able to see the charging status menu, and settings need to be changed in the config file
+- NickelMenu **is not required** on the Kobo in order for this tool to work. However, without NickelMenu you won't be able to see the charging status menu, and settings need to be changed in the config file.
 - Kindle devices need to be **jailbroken**
 
 ### Tested Devices
@@ -57,13 +57,13 @@ Download the ZIP for your reader from the [latest release](https://github.com/ch
 
 ### Kobo
 
-For Kobo devices I recommend installing [NickelMenu](https://pgaskin.net/NickelMenu/) if supported. Although Charge limit still works without it, but you have to setup the settings in the config file.
+For Kobo devices I recommend installing [NickelMenu](https://pgaskin.net/NickelMenu/) if supported. Charge Limit still works without it, but then you have to change the settings in the config file.
 
 1. Unzip `charge-limit-<version>-kobo.zip`. It contains `KoboRoot.tgz`.
 2. Connect the Kobo over USB and copy `KoboRoot.tgz` into the Kobo's `.kobo/` folder. On a Mac, Finder hides folders starting with a dot: press **⌘⇧.** to show them.
 3. Eject the Kobo. It installs the update and restarts.
 
-After the restart, the limit is on at 80%. If you Kobo has NickelMenu, you will see **Charge ...** items, which you can use to check charging status and change settings. There will also be a `chargelimit/` folder at the top of the Kobo's storage, with the settings file `config`, where you can manually edit the limits, and the [diagnostics report](#reporting-a-problem).
+After the restart, the limit is on at 80%. If your Kobo has NickelMenu, you will see **Charge ...** items, which you can use to check charging status and change settings. There will also be a `chargelimit/` folder at the top of the Kobo's storage, with the settings file `config`, where you can manually edit the limits, and the [diagnostics report](#reporting-a-problem).
 
 ### Kindle
 
@@ -75,7 +75,7 @@ Extract `charge-limit-<version>-kindle.zip`. It contains:
 
 ```text
 documents/
-└── chargelimit.sh              the Charge limit scriptlet
+└── chargelimit.sh              the Charge Limit scriptlet
 extensions/
 └── chargelimit/
     ├── install.sh
@@ -111,9 +111,9 @@ After copying, the Kindle's storage has:
 
 #### 3. Install
 
-Eject the Kindle and open **Charge limit** from the library. The app opens and says whether this Kindle is supported. Tap **Install**. The button then reads **Installed**, and the limit is on at 80%.
+Eject the Kindle and open **Charge Limit** from the library. The app opens and says whether this Kindle is supported. Tap **Install**. The button then reads **Installed**, and the limit is on at 80%.
 
-Charge limit then adds a `chargelimit/` folder at the top of the storage, with the settings file and the [diagnostics report](#reporting-a-problem).
+Charge Limit then adds a `chargelimit/` folder at the top of the storage, with the settings file and the [diagnostics report](#reporting-a-problem).
 
 ---
 
@@ -121,7 +121,7 @@ Charge limit then adds a `chargelimit/` folder at the top of the storage, with t
 
 ### On a Kobo
 
-If you don't have NickelMenu, there won't be any additions to the UI, the Charge Limit will be running automatically. To change its settings, see [this](#the-settings-file).
+If you don't have NickelMenu, there won't be any additions to the UI: Charge Limit runs automatically. To change its settings, see [this](#the-settings-file).
 
 With NickelMenu, its items show the current setting and what a tap does:
 
@@ -150,31 +150,31 @@ Every setting is in one file, which the menu and the app also change: `chargelim
 | `LIMIT` | 80 | Stop charging at this %. Charging resumes 5% lower. |
 | `FULL_CHARGE` | 0 | 1: charge to 100% until the charger is next unplugged, then back to 0. |
 | `DIAGNOSE` | 0 | 1: save the diagnostics report, then back to 0. |
-| `UNINSTALL` | 0 | 1: remove Charge limit (see [Uninstalling](#uninstalling)). |
+| `UNINSTALL` | 0 | 1: remove Charge Limit (see [Uninstalling](#uninstalling)). |
 
 ---
 
 ## Updating
 
 - **Kobo:** install the new `KoboRoot.tgz` the same way. Your settings stay.
-- **Kindle:** copy the new `chargelimit.sh` into `documents/` and the new `chargelimit` folder into `extensions/`, replacing the old ones, then open **Charge limit**. The button reads **Install** again; tap it. Your settings stay.
+- **Kindle:** copy the new `chargelimit.sh` into `documents/` and the new `chargelimit` folder into `extensions/`, replacing the old ones, then open **Charge Limit**. The button reads **Install** again; tap it. Your settings stay.
 
-**Install** also reappears on a Kindle if a firmware update removed Charge limit's start at boot: tap it to repair.
+**Install** also reappears on a Kindle if a firmware update removed Charge Limit's start at boot: tap it to repair.
 
 ---
 
 ## Uninstalling
 
 - **Kobo:** set `UNINSTALL=1` in `chargelimit/config` and eject.
-- **Kindle:** tap **Uninstall Charge limit** in the app, then again to confirm, or set `UNINSTALL=1` in `chargelimit/config`.
+- **Kindle:** tap **Uninstall Charge Limit** in the app, then again to confirm, or set `UNINSTALL=1` in `chargelimit/config`.
 
-Within a few seconds, Charge limit switches charging back on and removes everything it added: its program files, its start-at-boot files, its menu items or app, and its `chargelimit/` folder.
+Within a few seconds, Charge Limit switches charging back on and removes everything it added: its program files, its start-at-boot files, its menu items or app, and its `chargelimit/` folder.
 
 ---
 
 ## How it works
 
-Charge limit runs a small background program on the reader. It never changes how the chip charges, only whether it's allowed to:
+Charge Limit runs a small background program on the reader. It never changes how the chip charges, only whether it's allowed to:
 
 - **Checking:** every 30 seconds, and right away whenever the charger is plugged in or out.
 - **At the limit:** it switches charging off through the power chip's driver. The chip then powers the reader straight from the charger, so the battery holds its level instead of being drained and topped up.
@@ -187,7 +187,7 @@ Charge limit runs a small background program on the reader. It never changes how
 
 ## Safety and recovery
 
-Charge limit only switches charging on and off; it doesn't change how the chip charges.
+Charge Limit only switches charging on and off; it doesn't change how the chip charges.
 
 - **What it adds on a Kobo:** `/usr/local/chargelimit/`, `/etc/udev/rules.d/99-chargelimit.rules`, `chargelimit/` and, with NickelMenu, `.adds/nm/chargelimit`.
 - **What it adds on a Kindle:** `documents/chargelimit.sh` and `extensions/chargelimit/` (what you copy), the app's entry in `/var/local/appreg.db` (when you first open it), and, when you tap **Install**, `chargelimit/`, `/var/local/chargelimit/`, `/etc/upstart/chargelimit.conf` and `/etc/udev/rules.d/99-chargelimit.rules`.
@@ -199,21 +199,15 @@ Charge limit only switches charging on and off; it doesn't change how the chip c
 
 - **Powered off, the limit doesn't apply:** the chip charges a powered-off reader towards 100%. If you leave a Kobo plugged in for days, turn off its automatic power-off, or it will power off and charge fully.
 - **The battery icon** doesn't show the held state: on a Kobo it shows no charging symbol while the charger powers the reader, and on a Kindle it only updates when you replug.
-- **Firmware updates** may remove the start at boot. On a Kobo, install `KoboRoot.tgz` again; on a Kindle, open **Charge limit** and tap **Install**.
-- **After a restart,** the Kindle charges normally for about 100 seconds until Charge limit has started.
+- **Firmware updates** may remove the start at boot. On a Kobo, install `KoboRoot.tgz` again; on a Kindle, open **Charge Limit** and tap **Install**.
+- **After a restart,** the Kindle charges normally for about 100 seconds until Charge Limit has started.
 - **Readers other than the tested ones** may work but haven't been tried; see [Supported e-readers](#supported-e-readers).
 
 ---
 
 ## Reporting a problem
 
-[Open an issue](https://github.com/chengandre/ereader-charge-limit/issues/new) and say what happened; a sentence or two is enough. If you can, attach the diagnostics report: tap **Charge diagnostics**, connect the reader, and drag `diagnostics.log` from the `chargelimit/` folder at the top of its storage into the issue. It lists the reader's firmware and power hardware, Charge limit's settings and its recent log; it doesn't contain the serial number. It's plain text, so you can read it first.
-
----
-
-## Why this exists
-
-E-readers spend long stretches on the charger, and none of them lets you stop at 80%. The existing option for Kobos, a KOReader plugin, only works while KOReader is running. Charge limit works with the reader's own software and keeps working in the background, asleep and after a restart.
+[Open an issue](https://github.com/chengandre/ereader-charge-limit/issues/new) and say what happened; a sentence or two is enough. If you can, attach the diagnostics report: tap **Charge diagnostics**, connect the reader, and drag `diagnostics.log` from the `chargelimit/` folder at the top of its storage into the issue. It lists the reader's firmware and power hardware, Charge Limit's settings and its recent log; it doesn't contain the serial number. It's plain text, so you can read it first.
 
 ---
 
@@ -246,4 +240,4 @@ build.sh                   builds both packages (run by GitHub Actions)
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). The `chargectl` program in the downloads includes the GNU C Library, under the LGPL 2.1; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

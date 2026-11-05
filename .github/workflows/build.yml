@@ -101,6 +101,6 @@ jobs:
           cd ..
           gh release create "$GITHUB_REF_NAME" release/*.zip \
             --repo "$GITHUB_REPOSITORY" \
-            --title "Charge limit $GITHUB_REF_NAME" \
+            --title "Charge Limit $GITHUB_REF_NAME" \
             --notes-file ".github/release-notes/$GITHUB_REF_NAME.md" \
             --verify-tag

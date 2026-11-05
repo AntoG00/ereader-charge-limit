@@ -10,7 +10,7 @@ section() {
 	echo "== $1 =="
 }
 
-echo "Charge limit diagnostics"
+echo "Charge Limit diagnostics"
 echo "version: $(cat "$DIR/VERSION" 2>/dev/null)"
 echo "date: $(date '+%F %T %Z')"
 

@@ -58,5 +58,5 @@ udevadm control --reload-rules 2>/dev/null
 
 "$DIR/launch.sh"
 . "$DIR/settings.sh"
-echo "Charge limit $(cat "$DIR/VERSION") is installed: charging stops at $LIMIT%."
+echo "Charge Limit $(cat "$DIR/VERSION") is installed: charging stops at $LIMIT%."
 echo "It starts by itself whenever the Kindle restarts."

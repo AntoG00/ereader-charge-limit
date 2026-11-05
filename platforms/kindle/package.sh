@@ -9,6 +9,7 @@ mkdir -p "$root/documents" "$pkg/runtime"
 cp platforms/kindle/chargelimit.sh "$root/documents/"
 cp platforms/kindle/install.sh platforms/kindle/chargelimit.conf \
 	platforms/kindle/99-chargelimit.rules "$pkg/"
-cp core/* platforms/kindle/platform.sh build/chargectl build/VERSION "$pkg/runtime/"
+cp core/* platforms/kindle/platform.sh build/chargectl build/VERSION \
+	THIRD_PARTY_NOTICES.md licenses/LGPL-2.1.txt "$pkg/runtime/"
 cp -R platforms/kindle/ui "$pkg/"
 echo "Staged build/kindle/"

@@ -64,7 +64,7 @@ status | toggle | limit | start | full | activity | diagnose | labels | uninstal
 	elif [ "$action" = diagnose ]; then
 		sh "$PKG/runtime/actions.sh" diagnose 2>&1
 	else
-		echo "Charge limit isn't installed."
+		echo "Charge Limit isn't installed."
 	fi
 	;;
 *)

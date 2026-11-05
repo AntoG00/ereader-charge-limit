@@ -139,7 +139,7 @@ labels)
 	;;
 uninstall)
 	set_setting UNINSTALL 1
-	echo "Removing Charge limit: charging goes back to normal, and its files and menu go away within a few seconds."
+	echo "Removing Charge Limit: charging goes back to normal, and its files and menu go away within a few seconds."
 	"$DIR/launch.sh"
 	;;
 esac

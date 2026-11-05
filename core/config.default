@@ -1,4 +1,4 @@
-# Charge limit settings. The menu items change them too; you can also edit
+# Charge Limit settings. The menu items change them too; you can also edit
 # this file over USB. Changes apply within 30 seconds of ejecting.
 # Delete this file to get the defaults back.
 
@@ -17,7 +17,7 @@ LIMIT=80
 FULL_CHARGE=0
 # Save a report for support requests as diagnostics.log next to this file.
 DIAGNOSE=0
-# Remove Charge limit: turn charging back on and delete its files, its
+# Remove Charge Limit: turn charging back on and delete its files, its
 # menu items and this folder.
 UNINSTALL=0
 

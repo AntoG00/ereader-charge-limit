@@ -5,7 +5,7 @@
         xmlns="http://www.w3.org/ns/widgets"
         xmlns:kindle="http://kindle.amazon.com/ns/widget-extensions">
 
-    <name xml:lang="en">Charge limit</name>
+    <name xml:lang="en">Charge Limit</name>
     <description xml:lang="en">Keep the battery below a charge limit</description>
 
     <content src="index.html" />

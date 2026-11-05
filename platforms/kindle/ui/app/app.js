@@ -50,8 +50,8 @@
     }
 
     function problem(err) {
-        return "Couldn't reach Charge limit (" + err + ").\n" +
-            "Close this with × and open Charge limit from the library again.";
+        return "Couldn't reach Charge Limit (" + err + ").\n" +
+            "Close this with × and open Charge Limit from the library again.";
     }
 
     // "key=value" lines into an object.
@@ -88,16 +88,16 @@
             setText(install, current ? "Installed" : "Install");
             install.disabled = current || !supported;
             enable(installed);
-            setText(el("version"), "Charge limit " + state.version);
+            setText(el("version"), "Charge Limit " + state.version);
             if (!installed) {
                 showInfo(supported ?
-                    "This Kindle is supported, and Charge limit isn't installed yet.\n" +
+                    "This Kindle is supported, and Charge Limit isn't installed yet.\n" +
                     "Install adds the charge limiter, which then starts by itself with the Kindle." :
-                    "This Kindle isn't supported yet, so Charge limit can't be installed.\n" +
+                    "This Kindle isn't supported yet, so Charge Limit can't be installed.\n" +
                     "Charge diagnostics saves a report, chargelimit/diagnostics.log, to send with a request to support it.");
                 return;
             }
-            var note = current ? "" : "Tap Install to update Charge limit or repair its start at boot.\n\n";
+            var note = current ? "" : "Tap Install to update Charge Limit or repair its start at boot.\n\n";
             call("status", function (text, err) {
                 showInfo(note + (err ? problem(err) : text));
             });
@@ -140,14 +140,14 @@
         if (uninstallArmed) {
             clearTimeout(uninstallArmed);
             uninstallArmed = null;
-            setText(el("uninstall"), "Uninstall Charge limit");
+            setText(el("uninstall"), "Uninstall Charge Limit");
             run("uninstall");
             return;
         }
         setText(el("uninstall"), "Tap again to uninstall");
         uninstallArmed = setTimeout(function () {
             uninstallArmed = null;
-            setText(el("uninstall"), "Uninstall Charge limit");
+            setText(el("uninstall"), "Uninstall Charge Limit");
         }, 5000);
     }, false);
 
