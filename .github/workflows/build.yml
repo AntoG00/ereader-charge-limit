@@ -1,19 +1,21 @@
 name: Build
 
-# Builds every push and pull request except documentation-only ones. A tag
-# vMAJOR.MINOR.PATCH also publishes a release with the notes in
-# .github/release-notes/<tag>.md.
+# Builds every push and pull request except ones that only change docs or
+# README images (assets/). A tag vMAJOR.MINOR.PATCH also publishes a release
+# with the notes in .github/release-notes/<tag>.md.
 on:
   workflow_dispatch:
   push:
     paths-ignore:
       - "**.md"
       - "docs/**"
+      - "assets/**"
       - "LICENSE"
   pull_request:
     paths-ignore:
       - "**.md"
       - "docs/**"
+      - "assets/**"
       - "LICENSE"
 
 permissions:
