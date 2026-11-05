@@ -1,6 +1,8 @@
-# Check now on every battery or charger event.
-SUBSYSTEM=="power_supply", ACTION=="change", RUN+="/var/local/chargelimit/launch.sh"
+# Check now on every battery or charger event. Only a check ("check"): a
+# daemon started from here would inherit udevd's blocked signals.
+SUBSYSTEM=="power_supply", ACTION=="change", RUN+="/var/local/chargelimit/launch.sh check"
 # The MAX77696 charger (Kindle Paperwhite 7th gen) reports plug and unplug
-# as add and remove on its platform device instead.
-SUBSYSTEM=="platform", KERNEL=="max77696-charger.0", ACTION=="add", RUN+="/var/local/chargelimit/launch.sh"
-SUBSYSTEM=="platform", KERNEL=="max77696-charger.0", ACTION=="remove", RUN+="/var/local/chargelimit/launch.sh"
+# as add and remove on its platform device instead. Its add also comes at
+# boot, before upstart starts the daemon.
+SUBSYSTEM=="platform", KERNEL=="max77696-charger.0", ACTION=="add", RUN+="/var/local/chargelimit/launch.sh check"
+SUBSYSTEM=="platform", KERNEL=="max77696-charger.0", ACTION=="remove", RUN+="/var/local/chargelimit/launch.sh check"

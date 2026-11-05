@@ -2,7 +2,14 @@
 # Open the app, starting its bridge if needed. Run by the scriptlet.
 
 UI=$(cd "$(dirname "$0")" && pwd)
-. "${UI%/*}/runtime/platform.sh"
+PKG=${UI%/*}
+. "$PKG/runtime/platform.sh"
+# The package version the running app was started from.
+APP_VERSION=/tmp/chargelimit-app.version
+
+running() {
+	[ -n "$(pgrep -f "mesquite -l $APP_ID")" ]
+}
 
 # The bridge's token (see bridge.sh), made once.
 if [ ! -s "$UI/token" ]; then
@@ -32,10 +39,22 @@ if [ -z "$(bridge_pid)" ]; then
 	echo $! > "$BRIDGE_PID"
 fi
 
+# An app still running from before an update (the × only hides it) has the
+# old page, and the old token if the copy replaced ui/: the bridge would
+# refuse it. Stop it, so it starts afresh below.
+if running && ! cmp -s "$PKG/runtime/VERSION" "$APP_VERSION"; then
+	lipc-set-prop com.lab126.appmgrd stop "app://$APP_ID"
+	n=0
+	while running && [ "$n" -lt 5 ]; do
+		sleep 1
+		n=$((n + 1))
+	done
+fi
+
 # A running app gets one start and a refresh. A new one, without Mesquite's
 # cache, loads behind the home screen the Kindle shows after the scriptlet,
 # so it gets a second start after 2 s.
-if [ -n "$(pgrep -f "mesquite -l $APP_ID")" ]; then
+if running; then
 	lipc-set-prop com.lab126.appmgrd start "app://$APP_ID"
 	lipc-set-prop "$APP_ID" refresh -s now 2>/dev/null
 else
@@ -44,3 +63,4 @@ else
 	sleep 2
 	lipc-set-prop com.lab126.appmgrd start "app://$APP_ID"
 fi
+cp "$PKG/runtime/VERSION" "$APP_VERSION"

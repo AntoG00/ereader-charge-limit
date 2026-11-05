@@ -49,6 +49,18 @@ w=/sys/devices/system/wario_charger/wario_charger0
 [ -e "$w/mode" ] &&
 	echo "Charger: wario_charger0 (mode $(cat "$w/mode" 2>/dev/null), connected $(cat "$w/connected" 2>/dev/null))"
 
+# Alive, and not stuck: a daemon with SIGCHLD blocked never wakes from its
+# nap (wchan sys_rt_sigsuspend, a zombie sleep).
+section "daemon"
+pid=$(cat /tmp/chargelimitd.lock/pid 2>/dev/null)
+if [ -n "$pid" ] && grep -q chargelimitd "/proc/$pid/cmdline" 2>/dev/null; then
+	echo "running: pid $pid, version $(cat /tmp/chargelimitd.lock/version 2>/dev/null)"
+	grep -E '^(State|SigBlk|SigIgn):' "/proc/$pid/status"
+	echo "waiting in: $(cat "/proc/$pid/wchan" 2>/dev/null)"
+else
+	echo "not running"
+fi
+
 section "device"
 device_info
 echo "kernel: $(uname -a)"

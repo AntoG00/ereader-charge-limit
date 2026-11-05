@@ -1,6 +1,9 @@
 #!/bin/sh
 # Run at boot, on every power_supply change and after a setting changes:
-# asks a running daemon to check now, or starts one.
+# asks a running daemon to check now, or starts one. "launch.sh check" only
+# asks: the Kindle's udev rule uses it, since a daemon started from udevd
+# there inherits its blocked signals (SIGCHLD, USR1, TERM) and never wakes
+# from its first nap. Upstart starts it at boot instead.
 DIR=$(cd "$(dirname "$0")" && pwd)
 LOCK=/tmp/chargelimitd.lock
 pid=$(cat "$LOCK/pid" 2>/dev/null)
@@ -10,6 +13,7 @@ if [ -n "$pid" ] && grep -q chargelimitd "/proc/$pid/cmdline" 2>/dev/null; then
 		kill -USR1 "$pid"
 		exit 0
 	fi
+	[ "$1" = check ] && exit 0
 	# A Kobo update unpacks over a running daemon, which keeps its old code.
 	kill "$pid"
 	n=0
@@ -18,4 +22,5 @@ if [ -n "$pid" ] && grep -q chargelimitd "/proc/$pid/cmdline" 2>/dev/null; then
 		n=$((n + 1))
 	done
 fi
+[ "$1" = check ] && exit 0
 setsid "$DIR/chargelimitd.sh" </dev/null >/dev/null 2>&1 &
