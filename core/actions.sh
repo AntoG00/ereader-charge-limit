@@ -1,8 +1,9 @@
 #!/bin/sh
 # The menu's actions, in plain language: status, toggle, limit, start, full,
-# activity, diagnose, uninstall; menu (rewrite the menu) and labels (for the
-# Kindle app's buttons). Always exits 0: NickelMenu shows an error box
-# instead of the output otherwise.
+# activity, diagnose (the guided report, support.sh, on a reader we can't
+# control), uninstall; progress (of that report), menu (rewrite the menu)
+# and labels (for the Kindle app's buttons). Always exits 0: NickelMenu
+# shows an error box instead of the output otherwise.
 
 DIR=$(cd "$(dirname "$0")" && pwd)
 ACTIVITY=/tmp/chargelimit-activity.log
@@ -120,6 +121,11 @@ activity)
 	fi
 	;;
 diagnose)
+	# A reader we can't control gets the guided report instead.
+	if ! "$DIR/chargectl" status >/dev/null 2>&1; then
+		sh "$DIR/support.sh" tap
+		exit 0
+	fi
 	mkdir -p "$USER_DIR"
 	"$DIR/diagnostics.sh" > "$USER_DIR/diagnostics.log" 2>&1
 	if grep -q '^supported: yes' "$USER_DIR/diagnostics.log"; then
@@ -131,6 +137,7 @@ diagnose)
 	echo "Report saved as ${USER_DIR##*/}/diagnostics.log on the USB drive."
 	echo "Connect the reader to a computer to copy it."
 	;;
+progress) sh "$DIR/support.sh" progress ;;
 menu) refresh_menu ;;
 labels)
 	for key in toggle limit start full; do

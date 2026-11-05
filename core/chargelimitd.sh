@@ -44,6 +44,11 @@ nap() {
 	poked=
 }
 
+# The guided report (support.sh) switches charging itself and starts us
+# again when it's done.
+spid=$(cat /tmp/chargelimit-support/pid 2>/dev/null)
+[ -n "$spid" ] && kill -0 "$spid" 2>/dev/null && exit 0
+
 # One daemon at a time. Several udev events can start us at once at boot, so
 # give the winner a moment to write its pid before calling the lock stale.
 if ! mkdir "$LOCK" 2>/dev/null; then
@@ -95,10 +100,18 @@ while :; do
 		exit 0
 	fi
 
-	# Diagnostics once per run, and on DIAGNOSE=1.
+	# Diagnostics once per run, and on DIAGNOSE=1: on a reader we can't
+	# control, the guided report (a Kobo without NickelMenu has no menu to
+	# start it from). The once-per-run report doesn't replace a guided one.
 	if storage_ready && { [ -z "$diag_saved" ] || [ "$DIAGNOSE" = 1 ]; }; then
 		mkdir -p "$USER_DIR"
-		"$DIR/diagnostics.sh" > "$USER_DIR/diagnostics.log" 2>&1
+		if [ "$DIAGNOSE" = 1 ] && ! "$CHG" status >/dev/null 2>&1; then
+			set_setting DIAGNOSE 0
+			sh "$DIR/support.sh" tap >/dev/null
+		elif [ "$DIAGNOSE" = 1 ] ||
+			! grep -q '^Charge Limit support report' "$USER_DIR/diagnostics.log" 2>/dev/null; then
+			"$DIR/diagnostics.sh" > "$USER_DIR/diagnostics.log" 2>&1
+		fi
 		[ "$DIAGNOSE" = 1 ] && set_setting DIAGNOSE 0
 		diag_saved=1
 	fi

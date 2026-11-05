@@ -5,8 +5,9 @@
 #
 #   state      installed, current (install.sh --check), supported, version
 #   install    install.sh
-#   status toggle limit start full activity diagnose labels uninstall
-#              the installed actions.sh; diagnose also before installing
+#   status toggle limit start full activity diagnose progress labels uninstall
+#              the installed actions.sh; diagnose and progress (of the
+#              guided report on an unsupported Kindle) also before installing
 #
 # The token (token, app/bridge.js) keeps out pages in the Kindle's browser,
 # which can reach 127.0.0.1 but not the app's files. "_" defeats caching.
@@ -57,12 +58,12 @@ install)
 	reply "200 OK"
 	sh "$PKG/install.sh" 2>&1
 	;;
-status | toggle | limit | start | full | activity | diagnose | labels | uninstall)
+status | toggle | limit | start | full | activity | diagnose | progress | labels | uninstall)
 	reply "200 OK"
 	if [ -f "$INSTALL_DIR/actions.sh" ]; then
 		"$INSTALL_DIR/actions.sh" "$action" 2>&1
-	elif [ "$action" = diagnose ]; then
-		sh "$PKG/runtime/actions.sh" diagnose 2>&1
+	elif [ "$action" = diagnose ] || [ "$action" = progress ]; then
+		sh "$PKG/runtime/actions.sh" "$action" 2>&1
 	else
 		echo "Charge Limit isn't installed."
 	fi

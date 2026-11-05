@@ -7,6 +7,9 @@
     var uninstallArmed = null;
     // The last action's text, shown above the status.
     var message = "";
+    // The status last shown under it.
+    var shown = "";
+    var polling = false;
 
     function el(id) { return document.getElementById(id); }
 
@@ -16,6 +19,7 @@
     }
 
     function showInfo(text) {
+        shown = text;
         setText(el("info"), message ? message + "\n\n" + text : text);
     }
 
@@ -74,6 +78,22 @@
         el("uninstall").disabled = !installed;
     }
 
+    // While the guided report runs (Charge diagnostics on an unsupported
+    // Kindle), show its step every 5 s, then its result.
+    function pollProgress() {
+        if (polling) return;
+        polling = true;
+        call("progress", function (text, err) {
+            polling = false;
+            if (err || busy) return;
+            var first = text.split("\n")[0];
+            if (first === "idle") return;
+            message = text.substring(first.length + 1);
+            showInfo(shown);
+            if (first === "running") setTimeout(pollProgress, 5000);
+        });
+    }
+
     function refresh() {
         call("state", function (text, err) {
             var install = el("install");
@@ -94,7 +114,8 @@
                     "This Kindle is supported, and Charge Limit isn't installed yet.\n" +
                     "Install adds the charge limiter, which then starts by itself with the Kindle." :
                     "This Kindle isn't supported yet, so Charge Limit can't be installed.\n" +
-                    "Charge diagnostics saves a report, chargelimit/diagnostics.log, to send with a request to support it.");
+                    "Charge diagnostics guides you through a short test and saves a report, chargelimit/diagnostics.log, to send with a request to support it.");
+                if (!supported) pollProgress();
                 return;
             }
             var note = current ? "" : "Tap Install to update Charge Limit or repair its start at boot.\n\n";

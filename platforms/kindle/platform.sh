@@ -22,8 +22,15 @@ storage_ready() {
 	[ -d "$DOCUMENTS" ]
 }
 
+# The jailbreak's files and versions: some behaviour depends on the hotfix
+# (its scriptlet runner, sh_integration) as much as on the firmware.
 device_info() {
 	echo "kindle firmware: $(cat /etc/prettyversion.txt 2>/dev/null)"
+	echo "jailbreak: $(ls /var/local/kmc 2>/dev/null | tr '\n' ' ')"
+	for v in /var/local/kmc/*version* /var/local/kmc/*/*version*; do
+		[ -f "$v" ] && echo "$v: $(head -c 80 "$v" | tr '\n' ' ')"
+	done
+	echo "scriptlet runner: $(ls -l /var/local/kmc/bin/sh_integration_launcher 2>&1)"
 }
 
 # The app asks for the labels each time it shows them.

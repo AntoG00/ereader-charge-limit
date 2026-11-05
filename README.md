@@ -47,7 +47,7 @@ This tool has been tested on Kobo and Kindle devices:
 
 The driver is named after the BD71828's sibling, the BD71827, and so are its battery files (`bd71827_bat`). **Charge diagnostics** shows both the power chip and its driver.
 
-On a reader it can't control, Charge Limit does nothing to the charging. **Charge diagnostics** is available to save a report that helps add support; see [Reporting a problem](#reporting-a-problem).
+On a reader it can't control, Charge Limit does nothing to the charging, except during the short test **Charge diagnostics** runs there to help add support; see [Help add support for your e-reader](#help-add-support-for-your-e-reader).
 
 ---
 
@@ -149,7 +149,7 @@ Every setting is in one file, which the menu and the app also change: `chargelim
 | `START` | 1 | What `ENABLED` becomes at every restart: 1 on, 0 off. |
 | `LIMIT` | 80 | Stop charging at this %. Charging resumes 5% lower. |
 | `FULL_CHARGE` | 0 | 1: charge to 100% until the charger is next unplugged, then back to 0. |
-| `DIAGNOSE` | 0 | 1: save the diagnostics report, then back to 0. |
+| `DIAGNOSE` | 0 | 1: save the diagnostics report, then back to 0. On a reader that isn't supported yet, it starts the [support test](#kobo-without-nickelmenu) instead. |
 | `UNINSTALL` | 0 | 1: remove Charge Limit (see [Uninstalling](#uninstalling)). |
 
 ---
@@ -209,6 +209,40 @@ Charge Limit only switches charging on and off; it doesn't change how the chip c
 
 [Open an issue](https://github.com/chengandre/ereader-charge-limit/issues/new) and say what happened; a sentence or two is enough. If you can, attach the diagnostics report: tap **Charge diagnostics**, connect the reader, and drag `diagnostics.log` from the `chargelimit/` folder at the top of its storage into the issue. It lists the reader's firmware and power hardware, Charge Limit's settings and its recent log; it doesn't contain the serial number. It's plain text, so you can read it first.
 
+### Help add support for your e-reader
+
+If Charge Limit doesn't support your e-reader yet, it offers a short diagnostics test, about 5 minutes, that aims to collect everything needed to add support for it, so that ideally you only have to run it once. During the test it switches charging off and on a few times to find out how your reader can be controlled; charging always comes back on. If the results aren't enough, we may ask you to try a test version afterwards.
+
+Before you start:
+
+- Install Charge Limit as described in [Installation](#installation). On an unsupported Kindle, **Install** stays greyed out; that's expected.
+- Have a **wall charger** ready, not a computer: plugging into a computer starts USB mode instead of charging.
+- The battery should be **below 90%**: a full battery doesn't charge, so the test can't tell what switches charging off.
+
+#### Kindle
+
+1. Open **Charge Limit** and tap **Charge diagnostics**.
+2. Follow the screen, which updates by itself: unplug the charger if it's plugged in, plug in the wall charger, leave it plugged in while it tests (a few minutes), then unplug it when the screen says so.
+3. When the screen says **Done**, connect the Kindle to your computer and attach `chargelimit/diagnostics.log` to an issue, with your Kindle's model.
+
+#### Kobo with NickelMenu
+
+The menu shows one message per tap, so tap **Charge diagnostics** again after each step to see the next one. Each message says what to do now and what comes next.
+
+1. Unplug the charger, then tap **Charge diagnostics**. It says the test has started (step 1).
+2. Plug in the wall charger, wait a few seconds, and tap **Charge diagnostics** again. It shows the test's progress (step 3); leave the charger plugged in and tap again every minute or so.
+3. When it says to unplug (step 4), unplug, wait a few seconds and tap **Charge diagnostics** again.
+4. When it says **Done**, connect the Kobo to your computer and attach `chargelimit/diagnostics.log` to an issue, with your Kobo's model.
+
+#### Kobo without NickelMenu
+
+Without NickelMenu the test runs without messages, so follow these timings:
+
+1. Connect the Kobo to your computer, open `chargelimit/config` and set `DIAGNOSE=1`. Save, eject the Kobo and unplug it from the computer.
+2. Wait **1 minute** with the Kobo unplugged, so the test can start. Then, within 5 minutes, plug in the wall charger and leave it plugged in for **10 minutes**.
+3. Unplug it and wait a minute.
+4. Connect the Kobo to your computer. When the test is done, `chargelimit/diagnostics.log` starts with "Charge Limit support report"; attach it to an issue, with your Kobo's model.
+
 ---
 
 ## Project structure
@@ -221,6 +255,7 @@ core/                      shared by every reader
 ├── actions.sh             what each menu item or app button does
 ├── settings.sh            defaults, the settings file, menu labels
 ├── diagnostics.sh         the diagnostics report
+├── support.sh             the guided test on a reader it can't control yet
 └── config.default         the settings file's template
 platforms/kobo/            KoboRoot.tgz: platform.sh, the udev rule, the developer menu
 platforms/kindle/          the scriptlet, install.sh, platform.sh, the boot files

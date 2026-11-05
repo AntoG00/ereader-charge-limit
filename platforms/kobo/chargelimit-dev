@@ -5,4 +5,5 @@ menu_item :main :Dev status :cmd_output :5000:/usr/local/chargelimit/chargectl s
 menu_item :main :Dev charging on/off :cmd_output :5000:c=/usr/local/chargelimit/chargectl; if $c status | grep -q '^charging_enabled=1'; then $c off 2>&1 && echo "charging switched off"; else $c on 2>&1 && echo "charging switched on"; fi; echo "While the limit is on, the daemon may undo this within 30 s."
 menu_item :main :Dev log :cmd_output :5000:tail -n 12 /tmp/chargelimit.log 2>/dev/null || echo "no log yet"
 menu_item :main :Dev kernel log :cmd_output :5000:dmesg | grep -iE 'PMU|bd7182|charg' | tail -n 6; cd /sys/class/rtc/rtc0 && echo "alarm=$(cat wakealarm) now=$(date +%s) wakeups=$(cat device/power/wakeup_count 2>&1)"; dmesg | grep -E 'Suspending system|suspend exit' | tail -n 4
+menu_item :main :Dev support test :cmd_output :5000:sh /usr/local/chargelimit/support.sh tap 2>&1
 menu_item :main :Dev save logs :cmd_output :9000:d=/mnt/onboard/chargelimit; mkdir -p $d && cp /tmp/chargelimit.log /tmp/chargelimit-activity.log $d/ 2>/dev/null; dmesg > $d/dmesg.log; cat /sys/class/rtc/rtc0/device/power/wakeup_count > $d/rtc-wakeups.log; uptime > $d/uptime.log; ls $d
