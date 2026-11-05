@@ -12,7 +12,10 @@ A lot of time I use my e-reader on a stand while plugged in while I'm at my desk
 
 Because of this, I created this tool that sets a charge limit (80%) while allowing the e-reader to use power directly from the charger bypassing the battery, so there is no additional wear when not necessary. This way I hope to not need to replace its battery anytime soon as a quick search showed it to be basically impossible.
 
-<!-- Screenshots to add: the Kindle app (installed) and the Kobo's NickelMenu items. -->
+<p align="center">
+  <img src="assets/kindle.png" alt="The Charge limit app on a Kindle" width="300">
+  <img src="assets/kobo.png" alt="Charge status on a Kobo" width="300">
+</p>
 
 ---
 
@@ -56,7 +59,7 @@ Download the ZIP for your reader from the [latest release](https://github.com/ch
 
 For Kobo devices I recommend installing [NickelMenu](https://pgaskin.net/NickelMenu/) if supported. Although Charge limit still works without it, but you have to setup the settings in the config file.
 
-1. Unzip `charge-limit-<version>-kobo.zip`. It contains `.kobo/KoboRoot.tgz`.
+1. Unzip `charge-limit-<version>-kobo.zip`. It contains `KoboRoot.tgz`.
 2. Connect the Kobo over USB and copy `KoboRoot.tgz` into the Kobo's `.kobo/` folder. On a Mac, Finder hides folders starting with a dot: press **⌘⇧.** to show them.
 3. Eject the Kobo. It installs the update and restarts.
 

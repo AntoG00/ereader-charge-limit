@@ -5,7 +5,7 @@
 # instead of the output otherwise.
 
 DIR=$(cd "$(dirname "$0")" && pwd)
-ACTIVITY=/tmp/chargelimit.activity
+ACTIVITY=/tmp/chargelimit-activity.log
 
 . "$DIR/platform.sh"
 . "$DIR/settings.sh"

@@ -8,7 +8,7 @@ CHG=$DIR/chargectl
 WAKEALARM=/sys/class/rtc/rtc0/wakealarm
 LOG=/tmp/chargelimit.log
 # Plain-language events for the activity view.
-ACTIVITY=/tmp/chargelimit.activity
+ACTIVITY=/tmp/chargelimit-activity.log
 LOCK=/tmp/chargelimitd.lock
 # START has been applied this boot.
 BOOTED=/tmp/chargelimit.booted
@@ -51,6 +51,8 @@ if ! mkdir "$LOCK" 2>/dev/null; then
 	kill -0 "$(cat "$LOCK/pid" 2>/dev/null)" 2>/dev/null && exit 0
 fi
 echo $$ > "$LOCK/pid"
+# launch.sh restarts a daemon whose version is no longer the installed one.
+cp "$DIR/VERSION" "$LOCK/version"
 
 # Hand charging back to the stock driver if we're killed.
 stop() {

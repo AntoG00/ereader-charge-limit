@@ -1,6 +1,6 @@
 #!/bin/sh
 # Build chargectl (static ARM hard-float, for Kobos and Kindles alike) and
-# both packages. Needs Linux with gcc-arm-linux-gnueabihf, GNU tar and zip.
+# both packages. Needs Linux with gcc-arm-linux-gnueabihf and GNU tar.
 set -eu
 cd "$(dirname "$0")"
 
@@ -14,14 +14,10 @@ echo "$version ($(git rev-parse --short HEAD))" > build/VERSION
 sh platforms/kobo/package.sh
 sh platforms/kindle/package.sh
 
-# The downloads, laid out as they go on the reader:
-#   build/dist/charge-limit-<version>-kobo/.kobo/KoboRoot.tgz
+# The downloads, one folder per reader (CI zips them):
+#   build/dist/charge-limit-<version>-kobo/KoboRoot.tgz
 #   build/dist/charge-limit-<version>-kindle/{documents,extensions}/
-kobo=charge-limit-$version-kobo
-kindle=charge-limit-$version-kindle
-mkdir -p "build/dist/$kobo/.kobo"
-cp build/KoboRoot.tgz "build/dist/$kobo/.kobo/"
-cp -R build/kindle "build/dist/$kindle"
-(cd "build/dist/$kobo" && zip -qr "../$kobo.zip" .kobo)
-(cd "build/dist/$kindle" && zip -qr "../$kindle.zip" documents extensions)
-echo "Built build/dist/$kobo.zip and build/dist/$kindle.zip"
+mkdir -p "build/dist/charge-limit-$version-kobo"
+cp build/KoboRoot.tgz "build/dist/charge-limit-$version-kobo/"
+cp -R build/kindle "build/dist/charge-limit-$version-kindle"
+echo "Built build/dist/"

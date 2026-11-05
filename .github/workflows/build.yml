@@ -61,26 +61,17 @@ jobs:
           tar -tvzf build/KoboRoot.tgz
           find build/dist -type f | sort
 
-      # Downloaded as ZIPs laid out like the release ones.
+      # Each downloads as a ZIP; a release attaches the same two ZIPs.
       - uses: actions/upload-artifact@v4
         with:
           name: charge-limit-${{ env.VERSION }}-kobo
           path: build/dist/charge-limit-${{ env.VERSION }}-kobo/
-          # .kobo/ is a hidden folder.
-          include-hidden-files: true
           if-no-files-found: error
 
       - uses: actions/upload-artifact@v4
         with:
           name: charge-limit-${{ env.VERSION }}-kindle
           path: build/dist/charge-limit-${{ env.VERSION }}-kindle/
-          if-no-files-found: error
-
-      # The ZIPs themselves, for the release job.
-      - uses: actions/upload-artifact@v4
-        with:
-          name: release-zips
-          path: build/dist/*.zip
           if-no-files-found: error
 
   release:
@@ -93,15 +84,21 @@ jobs:
       # For the release notes file.
       - uses: actions/checkout@v4
 
+      # One folder per artifact, named after it.
       - uses: actions/download-artifact@v4
         with:
-          name: release-zips
+          pattern: charge-limit-*
           path: release
 
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          cd release
+          for d in charge-limit-*; do
+            (cd "$d" && zip -qr "../$d.zip" .)
+          done
+          cd ..
           gh release create "$GITHUB_REF_NAME" release/*.zip \
             --repo "$GITHUB_REPOSITORY" \
             --title "Charge limit $GITHUB_REF_NAME" \
