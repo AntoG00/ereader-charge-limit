@@ -1,17 +1,7 @@
 #!/bin/sh
-# Install chargelimit's daemon on a Kindle, from the installer's folder
-# (USER_DIR/install), which stays on the Kindle. The app's Install button
-# runs it through the bridge and shows what it prints; `install.sh --check`
-# tells the app whether this build is installed with both boot files. Run
-# again, it updates or repairs an install (a firmware update probably
-# removes the boot files). The app and the bridge run from install/ui and
-# aren't touched.
-#
-#   install/
-#     install.sh, chargelimit.conf, 99-chargelimit.rules
-#     runtime/   copied to INSTALL_DIR: the core, platform.sh, chargectl,
-#                VERSION
-#     ui/        the app and its bridge (see open-app.sh)
+# Install the daemon and boot files from the package; run again to update or
+# repair (firmware updates may remove the boot files). --check: is this
+# build installed with both boot files?
 
 P=$(cd "$(dirname "$0")" && pwd)
 . "$P/runtime/platform.sh"
@@ -24,8 +14,7 @@ if [ "$1" = --check ]; then
 	exit
 fi
 
-# A running daemon is replaced: stopping it switches charging on and removes
-# the lock. Replacing a shell script while it runs would break it.
+# Stop a running daemon before replacing its scripts.
 pid=$(cat "$LOCK/pid" 2>/dev/null)
 if [ -n "$pid" ] && grep -q chargelimitd "/proc/$pid/cmdline" 2>/dev/null; then
 	kill "$pid"
@@ -47,15 +36,13 @@ chmod 755 "$DIR"/*.sh "$DIR/chargectl"
 # Nothing goes on the system partition of a Kindle we can't control.
 if ! "$DIR/chargectl" status >/dev/null 2>&1; then
 	mkdir -p "$USER_DIR"
-	"$DIR/diagnostics.sh" > "$USER_DIR/diagnostics.txt" 2>&1
+	"$DIR/diagnostics.sh" > "$USER_DIR/diagnostics.log" 2>&1
 	rm -rf "$DIR"
 	echo "This Kindle isn't supported yet, so nothing was installed."
-	echo "A report was saved as $USER_DIR_SHOWN/diagnostics.txt on the USB drive."
+	echo "A report was saved as ${USER_DIR##*/}/diagnostics.log on the USB drive."
 	exit 1
 fi
 
-# The upstart job starts the daemon at boot; the udev rule signals it on
-# every power event. udev reads the new rule at once.
 /usr/sbin/mntroot rw >/dev/null 2>&1
 cp "$P/chargelimit.conf" /etc/upstart/ &&
 	cp "$P/99-chargelimit.rules" /etc/udev/rules.d/ &&
@@ -71,5 +58,5 @@ udevadm control --reload-rules 2>/dev/null
 
 "$DIR/launch.sh"
 . "$DIR/settings.sh"
-echo "chargelimit $(cat "$DIR/VERSION") is installed, with the charge limit at $LIMIT%."
+echo "Charge limit $(cat "$DIR/VERSION") is installed: charging stops at $LIMIT%."
 echo "It starts by itself whenever the Kindle restarts."

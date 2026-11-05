@@ -1,7 +1,5 @@
 #!/bin/sh
-# Pack build/KoboRoot.tgz from the core, this platform's files and the
-# chargectl and VERSION that build.sh left in build/. Kobo's firmware extracts
-# it over / and reboots. Run from the repository root.
+# Pack build/KoboRoot.tgz, which the Kobo extracts over /. Run by build.sh.
 set -eu
 
 root=build/kobo
@@ -13,8 +11,7 @@ chmod 755 "$dir"/*
 chmod 644 "$dir/VERSION" "$dir/config.default" "$dir/settings.sh" "$dir/platform.sh" \
 	"$root/etc/udev/rules.d/99-chargelimit.rules"
 
-# List only our own paths so extracting over / never touches the modes of
-# existing directories like /etc or /usr.
+# Only our own paths, so the modes of /etc and /usr stay untouched.
 tar -czf build/KoboRoot.tgz -C "$root" --owner=0 --group=0 \
 	etc/udev/rules.d/99-chargelimit.rules usr/local/chargelimit
 echo "Built build/KoboRoot.tgz"

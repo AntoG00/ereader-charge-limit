@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- chargelimit's Kindle app, run by Mesquite. The id is APP_ID in
-     platform.sh. local-port-access lets the page reach the bridge on
-     127.0.0.1; messaging lets it receive open-app.sh's refresh event. -->
+<!-- The id is APP_ID in platform.sh. local-port-access lets the page reach
+     the bridge on 127.0.0.1. -->
 <widget id="com.chargelimit.app" version="1.0" viewmodes="application"
         xmlns="http://www.w3.org/ns/widgets"
         xmlns:kindle="http://kindle.amazon.com/ns/widget-extensions">

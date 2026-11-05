@@ -4,9 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <title>Charge limit</title>
-    <!-- Sizes follow the screen width (1236 px on a Paperwhite 11th gen),
-         small enough that the page fits on one screen: Mesquite scrolls an
-         app's page only a little per swipe. -->
+    <!-- Sized to the screen width so the page fits one screen: Mesquite
+         barely scrolls. -->
     <script>document.documentElement.style.fontSize = (window.innerWidth || 1072) / 42 + "px";</script>
     <style>
         body { font-family: sans-serif; margin: 0.8rem 1.2rem; background: #fff; color: #000; }
@@ -34,7 +33,7 @@
     <div class="gap"></div>
     <button class="secondary" data-action="activity" disabled>Charge activity</button>
     <button class="secondary" data-action="diagnose" disabled>Charge diagnostics</button>
-    <button class="secondary" id="uninstall" disabled>Uninstall chargelimit</button>
+    <button class="secondary" id="uninstall" disabled>Uninstall Charge limit</button>
 
     <p class="small" id="version"></p>
 

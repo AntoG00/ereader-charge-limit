@@ -1,46 +1,28 @@
 /*
- * chargectl: read or toggle an e-reader's charge enable from userspace, while
- * the stock driver stays bound to the PMIC.
+ * chargectl: read or switch an e-reader's charging from userspace, with the
+ * stock driver still bound to the PMIC.
  *
- *   chargectl status  prints shell-evaluable key=value lines; exits 1 if
- *                     this reader has no supported charge control
+ *   chargectl status  key=value lines; exits 1 without a supported control
  *   chargectl on      allow charging (stock behaviour)
- *   chargectl off     stop charging; the device keeps running from USB
+ *   chargectl off     stop charging; the reader runs from USB
  *
- * Two ways to control charging, chosen by what the reader offers:
+ * Methods:
+ *   sysfs     the battery's "charging" file (the BD7182x driver,
+ *             bd71827-power, on Kobos and Kindles)
+ *   register  a known PMIC's charge-enable bit over I2C, when there's no
+ *             "charging" file or writing it didn't take
  *
- *   sysfs     the battery power_supply has a "charging" file (the
- *             bd71827-power driver on BD7182x readers, in Kobos and
- *             Kindles). The driver does the register update under its own
- *             lock.
- *   register  a known PMIC on I2C, found by its driver's name. Used when
- *             there's no "charging" file, or when writing it didn't take.
+ * ROHM BD71828 (mainline Linux rohm-bd71828.h):
+ *   0x6F CHG_EN bit 0, 0x68 DCIN_STAT bit 0, 0x65 CHG_STATE bits 6:0
+ * Ricoh RC5T619 (Kobo's b300-sage kernel source):
+ *   0xB3 CHGCTL1 bits 1:0 (VUSB, VADP charge enable)
+ *   0xBD CHGSTATE bits 7:6 supply state, bits 4:0 charge state
+ *   0xFF BANKSEL
  *
- * Battery level, voltage and "plugged" always come from the power_supply
- * class, so they work on any reader. Known PMICs:
- *
- * ROHM BD71828 (seen on a retail Sage; registers from mainline Linux's
- * rohm-bd71828.h and bd71828-power.c, which maps "inhibit-charge" to
- * clearing CHG_EN):
- *   0x6F CHG_EN     bit0 = charge enable
- *   0x68 DCIN_STAT  bit0 = charger present
- *   0x65 CHG_STATE  bits 6:0 = charge state
- *
- * Ricoh RC5T619 (in Kobo's published b300-sage kernel source):
- *   0xB3 CHGCTL1   bit0 = VADP charge enable, bit1 = VUSB charge enable
- *   0xBD CHGSTATE  bits 7:6 = supply state (0 = battery only),
- *                  bits 4:0 = charge state
- *   0xFF BANKSEL   0 or 1
- *
- * The Ricoh bank problem: the driver caches which bank it last selected
- * and only rewrites BANKSEL when it needs the other one. It uses bank 1 at
- * runtime (fuel-gauge upkeep), so we must never change BANKSEL ourselves,
- * and a plain write to 0xB3 while bank 1 is active would land on a
- * fuel-gauge register. Every Ricoh access therefore reads BANKSEL inside
- * the same I2C_RDWR transfer as the register access. The adapter lock is
- * held for the whole transfer, so the bank we read is the bank the access
- * used. If it was bank 1 we undo the access and retry. The BD71828 has a
- * single register page, so its transfers skip the BANKSEL messages.
+ * The Ricoh driver caches its selected bank and uses bank 1 at runtime, so
+ * we never write BANKSEL. Each access reads BANKSEL in the same I2C_RDWR
+ * transfer, under the adapter lock; if bank 1 was active, the access is
+ * undone and retried.
  */
 #include <dirent.h>
 #include <errno.h>
@@ -56,11 +38,8 @@
 
 #define REG_BANKSEL 0xFF
 #define SUPPLIES "/sys/class/power_supply"
-/*
- * SUPPLIES + "/" + a name of up to 255 bytes + NUL, and room for the longest
- * attribute suffix ("/voltage_now"). Sized so gcc can prove snprintf never
- * truncates.
- */
+/* Sized for a 255-byte name and the longest suffix, so gcc can prove
+ * snprintf never truncates. */
 #define SUPPLY_DIR_LEN (sizeof(SUPPLIES) + 1 + 255)
 #define SUPPLY_PATH_LEN (SUPPLY_DIR_LEN + 16)
 
@@ -71,8 +50,7 @@ struct pmic {
 	const char *name;	/* i2c client name in sysfs */
 	uint8_t ctl_reg;	/* register holding the charge-enable bits */
 	uint8_t en_bits;
-	uint8_t dcin_reg;	/* charger present when (reg & dcin_mask) != 0;
-				   reported for comparison with sysfs "plugged" */
+	uint8_t dcin_reg;	/* charger present when (reg & dcin_mask) != 0 */
 	uint8_t dcin_mask;
 	uint8_t state_reg;	/* charge state = reg & state_mask */
 	uint8_t state_mask;
@@ -94,10 +72,7 @@ static int plugged;		/* some other power_supply is online */
 
 static uint8_t reg_banksel = REG_BANKSEL;
 
-/*
- * Find the PMIC on the I2C bus by the name its driver binds to. Names must
- * match exactly: the BD71828 also has a "bd71828-otp" client.
- */
+/* Exact names: the BD71828 also has "bd71828-otp" and "bd71828_h" clients. */
 static void open_pmic(void)
 {
 	DIR *dir = opendir("/sys/bus/i2c/devices");
@@ -134,10 +109,7 @@ static void open_pmic(void)
 	if (bus < 0)
 		return;
 
-	/*
-	 * Kindles have the BD71828 but no /dev/i2c nodes: no register access,
-	 * which is expected there and not worth a message on every call.
-	 */
+	/* Kindles have no /dev/i2c nodes: expected, so no message. */
 	char dev[32];
 	snprintf(dev, sizeof(dev), "/dev/i2c-%d", bus);
 	fd = open(dev, O_RDWR);
@@ -165,10 +137,8 @@ static int read_line(const char *path, char *buf, size_t size)
 }
 
 /*
- * Pick the battery power_supply and work out whether a charger is online.
- * A Battery-type supply with a "charging" file wins over one without (a
- * Sage PowerCover, for one, adds its own battery). Any other supply that
- * reports online=1 means the reader is plugged in.
+ * A battery with a "charging" file wins over one without (a Sage PowerCover
+ * adds its own). Any other supply online means the reader is plugged in.
  */
 static void find_supplies(void)
 {
@@ -211,10 +181,8 @@ static const char *method(void)
 	return pmic ? "register" : "none";
 }
 
-/*
- * Send msgs as one transfer. Every caller starts with the two BANKSEL
- * messages; they are dropped on chips without banks.
- */
+/* One transfer. Callers start with the two BANKSEL messages, dropped on
+ * chips without banks. */
 static int xfer(struct i2c_msg *msgs, int n)
 {
 	if (!pmic->banked) {
@@ -261,9 +229,8 @@ static int read_reg_retry(uint8_t reg, uint8_t *val)
 }
 
 /*
- * Write the charge-control register in one transfer that also reports the
- * active bank and the register's value just before the write. If bank 1
- * was active, put the clobbered bank-1 byte back and report a retry.
+ * Write the control register, reading the bank and the old value in the
+ * same transfer. Returns 1 (retry) after restoring a bank-1 byte.
  */
 static int write_ctl(uint8_t val, uint8_t *before)
 {
@@ -317,11 +284,7 @@ static int write_charging_attr(int enable)
 	return 0;
 }
 
-/*
- * The "charging" file's value: 1, 0, or -1 if unreadable. On the BD71828
- * Sage it follows CHG_EN only while a charger is connected and reads 0
- * when unplugged, so with a known PMIC the register is the truth.
- */
+/* 1, 0, or -1 if unreadable. It reads 0 while unplugged, whatever CHG_EN. */
 static int read_charging_attr(void)
 {
 	char val[8];
@@ -333,9 +296,7 @@ static int read_charging_attr(void)
 
 /*
  * Prefer the driver's file, checked against the register when the PMIC is
- * known, or against the file itself when it isn't. In the direct-write loop
- * each pass re-reads the register, so a pass that finds nothing to do is
- * the verification.
+ * known. In the register loop, a pass with nothing to do is the check.
  */
 static int set_charging(int enable)
 {
@@ -370,11 +331,8 @@ static int set_charging(int enable)
 		if (r < 0)
 			return -1;
 		if (r == 0 && before != cur) {
-			/*
-			 * The driver changed the register between our read and
-			 * write, and our write discarded its change. Reapply its
-			 * value with our bits on top.
-			 */
+			/* The driver changed it between our read and write:
+			 * reapply its value with our bit. */
 			if (write_ctl(with_charging(before, enable), &before) < 0)
 				return -1;
 		}
@@ -386,13 +344,8 @@ static int set_charging(int enable)
 }
 
 /*
- * Example on a BD71828 Sage:
- *   method=sysfs pmic=bd71828 battery=/sys/class/power_supply/battery
- *   charging_enabled=1 plugged=1 capacity=84 voltage_uv=4119300
- *   current_ua=402000 ctl=0x01 pmic_plugged=1 charge_state=0x0e
- * (one key per line). The last three only appear with a known PMIC.
- * Without one, charging_enabled comes from the "charging" file, and is
- * "unknown" while unplugged.
+ * method, pmic, battery, plugged, capacity, voltage_uv, current_ua,
+ * charging_enabled; ctl, pmic_plugged and charge_state with a known PMIC.
  */
 static int print_status(void)
 {
@@ -410,9 +363,7 @@ static int print_status(void)
 		snprintf(path, sizeof(path), "%s/voltage_now", battery);
 		if (read_line(path, val, sizeof(val)) == 0)
 			printf("voltage_uv=%s\n", val);
-		/* Negative while discharging. current_now rather than current_avg:
-		 * on the BD71828 Sage the average lagged by minutes, missing a
-		 * full backlight and the switch to charging. */
+		/* Negative while discharging. current_avg lags by minutes. */
 		snprintf(path, sizeof(path), "%s/current_now", battery);
 		if (read_line(path, val, sizeof(val)) == 0)
 			printf("current_ua=%s\n", val);
@@ -429,7 +380,6 @@ static int print_status(void)
 		printf("pmic_plugged=%d\n", (dcin & pmic->dcin_mask) != 0);
 		printf("charge_state=0x%02x\n", state & pmic->state_mask);
 	} else if (charging_attr[0] && !plugged) {
-		/* The file reads 0 when unplugged whatever the setting. */
 		printf("charging_enabled=unknown\n");
 		return 0;
 	} else if (charging_attr[0]) {

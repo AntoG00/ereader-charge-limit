@@ -1,23 +1,8 @@
 #!/bin/sh
-# The actions behind the menu items (NickelMenu on a Kobo), in plain language:
-#
-#   actions.sh status     settings, battery and what charging is doing
-#   actions.sh toggle     flip ENABLED: the limit on or off
-#   actions.sh limit      cycle LIMIT through LIMITS (settings.sh)
-#   actions.sh start      flip START: what ENABLED becomes at each restart
-#   actions.sh full       flip FULL_CHARGE: charge to 100% until unplugged
-#   actions.sh activity   recent events, written by the daemon
-#   actions.sh diagnose   save the diagnostics report to the user's storage
-#   actions.sh menu       refresh the menu to show the current settings
-#   actions.sh labels     the settings' labels as key=label lines, for a UI
-#                         that draws its own buttons (the Kindle app)
-#   actions.sh uninstall  set UNINSTALL, so the daemon removes chargelimit
-#
-# Every setting lives in the config, so the menu and hand edits behave the
-# same; the daemon picks changes up at once because launch.sh signals it.
-# The daemon's full log (/tmp/chargelimit.log) and the diagnostics report
-# keep the technical detail. Every action exits 0, because NickelMenu shows
-# an error box instead of the output otherwise.
+# The menu's actions, in plain language: status, toggle, limit, start, full,
+# activity, diagnose, uninstall; menu (rewrite the menu) and labels (for the
+# Kindle app's buttons). Always exits 0: NickelMenu shows an error box
+# instead of the output otherwise.
 
 DIR=$(cd "$(dirname "$0")" && pwd)
 ACTIVITY=/tmp/chargelimit.activity
@@ -25,7 +10,7 @@ ACTIVITY=/tmp/chargelimit.activity
 . "$DIR/platform.sh"
 . "$DIR/settings.sh"
 
-# After a setting changed: the daemon applies it now, and the labels follow.
+# After a setting changed.
 apply() {
 	"$DIR/launch.sh"
 	refresh_menu
@@ -62,8 +47,7 @@ status() {
 		echo "It turns off when the reader restarts."
 	fi
 	echo
-	# Charging or not comes from the driver's status, which Nickel's battery
-	# icon also shows, so the two agree; the current's sign can lag behind.
+	# The driver's status, as the battery icon shows it: the current lags.
 	bat_status=$(cat "$battery/status" 2>/dev/null)
 	if [ "$plugged" = 0 ]; then
 		echo "Battery $capacity%, not plugged in, using $(watts) W."
@@ -137,13 +121,14 @@ activity)
 	;;
 diagnose)
 	mkdir -p "$USER_DIR"
-	"$DIR/diagnostics.sh" > "$USER_DIR/diagnostics.txt" 2>&1
-	if grep -q '^supported: yes' "$USER_DIR/diagnostics.txt"; then
+	"$DIR/diagnostics.sh" > "$USER_DIR/diagnostics.log" 2>&1
+	if grep -q '^supported: yes' "$USER_DIR/diagnostics.log"; then
 		echo "This reader is supported."
 	else
 		echo "This reader isn't supported yet."
 	fi
-	echo "Report saved as $USER_DIR_SHOWN/diagnostics.txt on the USB drive."
+	grep -E '^(Power chip|Battery): ' "$USER_DIR/diagnostics.log"
+	echo "Report saved as ${USER_DIR##*/}/diagnostics.log on the USB drive."
 	echo "Connect the reader to a computer to copy it."
 	;;
 menu) refresh_menu ;;
@@ -154,7 +139,7 @@ labels)
 	;;
 uninstall)
 	set_setting UNINSTALL 1
-	echo "Removing chargelimit: charging goes back to normal, and its files and menu go away within a few seconds."
+	echo "Removing Charge limit: charging goes back to normal, and its files and menu go away within a few seconds."
 	"$DIR/launch.sh"
 	;;
 esac

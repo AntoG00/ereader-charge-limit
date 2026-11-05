@@ -1,27 +1,21 @@
 #!/bin/sh
-# Keep a reader's battery between RESUME and LIMIT percent while plugged in.
-# At LIMIT charging is switched off and the reader runs from USB. chargectl
-# works out how this reader's charging can be controlled; on a reader where it
-# can't, the daemon only writes diagnostics and idles. It keeps running while
-# the limit is off (ENABLED=0), only making sure charging is on, so turning
-# it back on in the config applies within POLL seconds. What differs between
-# readers (paths, menu, uninstall) comes from platform.sh.
+# Keeps the battery between RESUME and LIMIT percent while plugged in: at
+# LIMIT charging is switched off and the reader runs from USB. On a reader
+# chargectl can't control, it only saves diagnostics and idles.
 
 DIR=$(cd "$(dirname "$0")" && pwd)
 CHG=$DIR/chargectl
 WAKEALARM=/sys/class/rtc/rtc0/wakealarm
-# Full technical log, for diagnostics and reports.
 LOG=/tmp/chargelimit.log
-# A few plain-language events for the menu's activity view (actions.sh).
+# Plain-language events for the activity view.
 ACTIVITY=/tmp/chargelimit.activity
 LOCK=/tmp/chargelimitd.lock
-# Created once START has been applied this boot; /tmp is cleared on reboot.
+# START has been applied this boot.
 BOOTED=/tmp/chargelimit.booted
 
 . "$DIR/platform.sh"
 
-# The settings come from settings.sh, re-sourced every check; this is only
-# for the checks before the config is first readable.
+# Until the config is first read.
 POLL=30
 
 log() {
@@ -35,11 +29,8 @@ activity() {
 	echo "$(date '+%H:%M') $*" >> "$ACTIVITY"
 }
 
-# launch.sh sends USR1 on every power_supply event and setting change to ask
-# for an immediate check. Trap it before anything else: its default action
-# would kill us. A trapped signal makes `wait` return early, which ends the
-# nap. One that arrives during a check (the first one writes diagnostics,
-# which takes a moment) is remembered, and the next nap is skipped.
+# launch.sh sends USR1 to ask for a check now: it ends the nap, and one that
+# arrives during a check skips the next nap.
 poked=
 trap 'poked=1' USR1
 nap() {
@@ -53,10 +44,8 @@ nap() {
 	poked=
 }
 
-# One daemon per boot. /tmp is a tmpfs, so a lock left by a crash is gone after
-# a reboot; until then the pid check below catches it. At boot several udev
-# events can start us at once, and the winner may not have written its pid
-# yet, so give it a moment before treating the lock as stale.
+# One daemon at a time. Several udev events can start us at once at boot, so
+# give the winner a moment to write its pid before calling the lock stale.
 if ! mkdir "$LOCK" 2>/dev/null; then
 	sleep 1
 	kill -0 "$(cat "$LOCK/pid" 2>/dev/null)" 2>/dev/null && exit 0
@@ -73,15 +62,11 @@ stop() {
 trap stop TERM INT
 
 while :; do
-	# The user's storage can be unavailable, for example on a Kobo in USB
-	# mass-storage mode; the last settings read stay in effect until it's
-	# back. At boot it may not be mounted yet, and ENABLED isn't known until
-	# it is, so wait for the first read before doing anything.
+	# Storage can be missing (USB mode on a Kobo, early boot): keep the last
+	# settings, and do nothing before the first read.
 	if storage_ready; then
-		# Once per run: give users a commented config to find and edit,
-		# apply START once per boot (the marker stops a daemon restarted
-		# later in the same boot from applying it again), and refresh the
-		# menu.
+		# First read: create the config, apply START once per boot, and
+		# write the menu.
 		if [ -z "$config_read" ]; then
 			if [ ! -f "$USER_DIR/config" ]; then
 				mkdir -p "$USER_DIR"
@@ -108,21 +93,19 @@ while :; do
 		exit 0
 	fi
 
-	# Diagnostics go to the user's storage once per boot, and again whenever
-	# the user sets DIAGNOSE=1.
+	# Diagnostics once per run, and on DIAGNOSE=1.
 	if storage_ready && { [ -z "$diag_saved" ] || [ "$DIAGNOSE" = 1 ]; }; then
 		mkdir -p "$USER_DIR"
-		"$DIR/diagnostics.sh" > "$USER_DIR/diagnostics.txt" 2>&1
+		"$DIR/diagnostics.sh" > "$USER_DIR/diagnostics.log" 2>&1
 		[ "$DIAGNOSE" = 1 ] && set_setting DIAGNOSE 0
 		diag_saved=1
 	fi
 
-	# Exits non-zero when this reader has no usable charge control; it still
-	# prints what it found. Log that once, then idle.
+	# Unsupported reader: log it once, then idle.
 	if ! status=$("$CHG" status 2>>"$LOG"); then
 		if [ -z "$unavailable" ]; then
 			eval "$status"
-			log "no usable charge control (method=$method, pmic=$pmic), idling; see $USER_DIR/diagnostics.txt"
+			log "no usable charge control (method=$method, pmic=$pmic), idling; see $USER_DIR/diagnostics.log"
 			activity "This reader isn't supported yet"
 			unavailable=1
 		fi
@@ -139,28 +122,23 @@ while :; do
 	unavailable=
 	cap=$capacity
 
-	# Awake, checks are at most POLL seconds apart, so a longer gap means the
-	# reader slept. Log what this first check after waking sees, to show
-	# whether the battery reading is fresh (voltage moves even if % doesn't).
+	# A gap longer than POLL means the reader slept.
 	now=$(date +%s)
 	if [ -n "$last" ] && [ $((now - last)) -gt $((POLL + 10)) ]; then
 		log "check after $((now - last)) s asleep: battery ${cap}% ${voltage_uv}uV, charging_enabled=$charging_enabled, plugged=$plugged"
 	fi
 	last=$now
 
-	# Nothing switches charging off while unplugged, so once it's on after an
-	# unplug it stays on until the next plug-in. That covers readers where
-	# chargectl can't read the state while unplugged (charging_enabled=unknown).
+	# Charging stays on from an unplug to the next plug-in, which covers
+	# readers that report charging_enabled=unknown while unplugged.
 	if [ "$plugged" = 1 ]; then
 		on_since_unplug=
 	elif [ -n "$on_since_unplug" ]; then
 		charging_enabled=1
 	fi
 
-	# A full charge lasts until the charger is unplugged: it ends at the first
-	# check that sees the charger gone after seeing it plugged in, so one set
-	# while unplugged covers the next time it's plugged in. Retried if the
-	# config can't be written yet (USB mass-storage mode).
+	# A full charge ends at the first unplug after a plug-in, so one set
+	# while unplugged waits for the next charge.
 	if [ "$FULL_CHARGE" != 1 ]; then
 		full_plugged=
 	elif [ "$plugged" = 1 ]; then
@@ -170,8 +148,6 @@ while :; do
 		"$DIR/actions.sh" menu
 	fi
 
-	# Only "limiting" holds the battery below 100%. Each change is reported
-	# once, whether it came from the menu, the config or the daemon itself.
 	limiting=
 	if [ "$ENABLED" = 0 ]; then
 		mode="limit off"
@@ -193,8 +169,7 @@ while :; do
 		last_mode=$mode
 	fi
 
-	# Between RESUME and LIMIT keep the current state, so the stock driver
-	# re-enabling charging there just tops the battery up to LIMIT.
+	# Between RESUME and LIMIT, keep the current state.
 	want=$charging_enabled
 	if [ "$plugged" = 0 ] || [ -z "$limiting" ]; then
 		want=1
@@ -220,21 +195,15 @@ while :; do
 	fi
 	[ "$plugged" = 0 ] && [ "$charging_enabled" = 1 ] && on_since_unplug=1
 
-	# A UI that shows the status (the Kindle app) hears when it changed.
 	shown="$plugged $charging_enabled $cap"
 	if [ "$shown" != "$last_shown" ]; then
 		[ -n "$last_shown" ] && notify_ui
 		last_shown=$shown
 	fi
 
-	# The PMIC keeps charging while the reader sleeps and this loop can't run,
-	# so while we're letting it charge towards LIMIT, a wake alarm brings the
-	# reader back to check (the wake-up's power_supply event makes launch.sh
-	# signal us). This is a fallback: the Sage wakes itself about every 87 s
-	# while plugged in, which comes first, and every wake-up clears the alarm,
-	# so it's set again after each one. With charging off the battery can't
-	# climb, and without the limit there's nothing to stop, so no alarm is
-	# needed. Only set when no alarm is pending, to leave the system's own alone.
+	# While charging towards LIMIT, a wake alarm brings a sleeping reader back
+	# to check. Each wake-up clears it; set only when none is pending, to
+	# leave the system's own alone.
 	if [ "$WAKE_WHILE_CHARGING" = 1 ] && [ -n "$limiting" ] && [ "$plugged" = 1 ] &&
 	   [ "$want" = 1 ] && [ -z "$(cat "$WAKEALARM" 2>/dev/null)" ]; then
 		if (echo "+$WAKE_INTERVAL" > "$WAKEALARM") 2>/dev/null; then

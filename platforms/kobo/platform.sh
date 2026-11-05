@@ -1,36 +1,24 @@
-# Kobo: what differs from other readers, sourced by the core scripts
-# (chargelimitd.sh, actions.sh, diagnostics.sh) before anything else.
-#
-# Installed by KoboRoot.tgz into /usr/local/chargelimit, on the system
-# partition: it stays put while the USB partition is unmounted (USB mode),
-# and udev rules must be in /etc anyway. The user's files live on the USB
-# partition.
+# Kobo: what differs from other readers, sourced first by the core scripts.
+# Installed in /usr/local/chargelimit, which stays mounted in USB mode.
 
-# The config, diagnostics report and anything else for the user to find.
-USER_DIR=/mnt/onboard/.adds/chargelimit
-# USER_DIR as users see it over USB, for messages.
-USER_DIR_SHOWN=.adds/chargelimit
+# The config and diagnostics.log (not .txt, which Nickel lists as a book).
+USER_DIR=/mnt/onboard/chargelimit
 MENU=/mnt/onboard/.adds/nm/chargelimit
-# The wake alarm while charging (settings.sh). The Sage wakes itself every
-# ~87 s while plugged in, but other Kobos may sleep through a charge.
+# Some Kobos may sleep through a charge without the wake alarm.
 WAKE_WHILE_CHARGING_DEFAULT=1
 
-# The USB partition is unmounted in USB mass-storage mode (.kobo is missing
-# then), and at boot until it's mounted.
+# Unmounted in USB mode, and early at boot.
 storage_ready() {
 	[ -d /mnt/onboard/.kobo ]
 }
 
-# Which reader and firmware, for diagnostics. The first field of
-# .kobo/version is the serial number; leave it out.
+# The first field of .kobo/version is the serial number; leave it out.
 device_info() {
 	echo "kobo version: $(cut -d, -f2- /mnt/onboard/.kobo/version 2>/dev/null)"
 }
 
-# NickelMenu re-reads its files whenever the menu opens, so the labels can
-# show the current settings. Labels can't contain ":". Only written when it
-# changed, to spare the flash and NickelMenu's reloads; skipped if
-# NickelMenu isn't installed. Needs the settings (settings.sh) loaded.
+# NickelMenu re-reads it on every open, so the labels show the current
+# settings. Written only when it changed; skipped without NickelMenu.
 refresh_menu() {
 	[ -d "${MENU%/*}" ] || return 0
 	cat > /tmp/chargelimit.menu <<EOF
@@ -47,14 +35,12 @@ EOF
 	rm -f /tmp/chargelimit.menu
 }
 
-# The daemon calls this when the plug, charging or battery level changed.
-# NickelMenu items read the status when tapped, so there's nothing to tell.
+# NickelMenu items read the status when tapped.
 notify_ui() {
 	:
 }
 
-# What uninstalling removes besides $DIR and $USER_DIR. KoboRoot.tgz can add
-# files but not remove them, so the daemon does it.
+# What uninstalling removes besides $DIR and $USER_DIR.
 platform_uninstall() {
 	rm -f /etc/udev/rules.d/99-chargelimit.rules "$MENU"
 }

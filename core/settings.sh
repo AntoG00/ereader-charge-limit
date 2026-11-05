@@ -1,10 +1,7 @@
-# Sourced by chargelimitd.sh and actions.sh, after platform.sh: the defaults,
-# then the user's config on top. Re-sourcing it picks up config changes,
-# including removed lines. The config is the only place settings live: the
-# menu edits it too.
+# Sourced after platform.sh: the defaults, then the config on top.
 
 CONFIG=$USER_DIR/config
-# The choices the menu cycles LIMIT through.
+# What the menu cycles LIMIT through.
 LIMITS="70 80 90"
 
 ENABLED=1
@@ -14,16 +11,12 @@ FULL_CHARGE=0
 DIAGNOSE=0
 UNINSTALL=0
 POLL=30
-# Whether a reader needs the wake alarm depends on how it sleeps while
-# charging, so each platform.sh sets the default.
 WAKE_WHILE_CHARGING=$WAKE_WHILE_CHARGING_DEFAULT
 WAKE_INTERVAL=120
 [ -f "$CONFIG" ] && . "$CONFIG"
 
-# The config is user-edited. A LIMIT that isn't a plain number would break
-# the daemon's comparisons; ENABLED and START fall back to on unless they're
-# exactly 0, so a typo never silently turns the limit off. The one-off
-# actions only run on exactly 1.
+# The config is edited by hand: ENABLED and START are off only when exactly
+# 0, so a typo never turns the limit off.
 case $LIMIT in
 '' | *[!0-9]*) LIMIT=80 ;;
 esac
@@ -31,8 +24,7 @@ esac
 [ "$START" = 0 ] || START=1
 RESUME=$((LIMIT - 5))
 
-# The next choice after the current LIMIT, wrapping around; a hand-edited
-# LIMIT that isn't one of the choices goes to the next one above it.
+# The next choice above LIMIT, wrapping around.
 next_limit() {
 	for l in $LIMITS; do
 		[ "$l" -gt "$LIMIT" ] && { echo "$l"; return; }
@@ -40,9 +32,8 @@ next_limit() {
 	echo "${LIMITS%% *}"
 }
 
-# The menu's label for a setting, as "current setting - what a tap does": the
-# Kobo's NickelMenu items and the Kindle app's buttons. No ":" (NickelMenu
-# can't show it).
+# A setting's menu label, "current setting - what a tap does". NickelMenu
+# can't show ":".
 label() {
 	case $1 in
 	toggle)
@@ -56,9 +47,8 @@ label() {
 	esac
 }
 
-# Change one setting in the config in place, keeping the user's comments, and
-# in this shell. Fails while the user's storage is unavailable, where writing
-# would land under the bare mount point.
+# Change one setting in the config, keeping its comments. Fails while the
+# storage is unavailable.
 set_setting() {
 	storage_ready || return 1
 	mkdir -p "${CONFIG%/*}"

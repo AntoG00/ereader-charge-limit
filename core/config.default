@@ -1,4 +1,4 @@
-# chargelimit settings. The menu items change them too; you can also edit
+# Charge limit settings. The menu items change them too; you can also edit
 # this file over USB. Changes apply within 30 seconds of ejecting.
 # Delete this file to get the defaults back.
 
@@ -15,18 +15,17 @@ LIMIT=80
 # One-off actions: set one to 1, and the reader sets it back to 0 once done.
 # Charge to 100% until the charger is next unplugged, then limit again.
 FULL_CHARGE=0
-# Save a report for support requests as diagnostics.txt next to this file.
+# Save a report for support requests as diagnostics.log next to this file.
 DIAGNOSE=0
-# Remove chargelimit: turn charging back on and delete its files, its
+# Remove Charge limit: turn charging back on and delete its files, its
 # menu items and this folder.
 UNINSTALL=0
 
 # Advanced, uncomment to change.
 # Seconds between checks while the reader is awake.
 #POLL=30
-# While charging below LIMIT, wake a sleeping reader (screen and light stay
-# off) every WAKE_INTERVAL seconds to check, so it doesn't charge past LIMIT.
-# A fallback, on by default on a Kobo, though some like the Sage already wake
-# often enough. Off by default on a Kindle, which stays awake while charging.
+# While charging below LIMIT, wake a sleeping reader every WAKE_INTERVAL
+# seconds to check (screen and light stay off). On by default on a Kobo; off
+# on a Kindle, which stays awake while charging.
 #WAKE_WHILE_CHARGING=1
 #WAKE_INTERVAL=120

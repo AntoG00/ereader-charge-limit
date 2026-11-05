@@ -1,10 +1,6 @@
 #!/bin/sh
-# Print a read-only report of what this reader offers for charge control, for
-# users to attach to a bug report or a request to support their device. It
-# never writes to the chip. The daemon saves it in USER_DIR. On a reader
-# with neither a "charging" file nor a known chip, it should show enough to
-# find another switch: writable attributes, the driver's device folder, its
-# register dump, /dev/i2c nodes and the kernel's drivers.
+# A read-only report of what this reader offers for charge control, for
+# support requests. Never writes to the chip.
 
 DIR=$(cd "$(dirname "$0")" && pwd)
 . "$DIR/platform.sh"
@@ -14,7 +10,7 @@ section() {
 	echo "== $1 =="
 }
 
-echo "chargelimit diagnostics"
+echo "Charge limit diagnostics"
 echo "version: $(cat "$DIR/VERSION" 2>/dev/null)"
 echo "date: $(date '+%F %T %Z')"
 
@@ -24,6 +20,30 @@ if "$DIR/chargectl" status 2>&1; then
 else
 	echo "supported: no"
 fi
+
+# The chip is the I2C device's name; the battery's driver can carry another
+# chip's name (the BD71828's is bd71827-power).
+section "power chip"
+chip=
+for d in /sys/bus/i2c/devices/*; do
+	name=$(cat "$d/name" 2>/dev/null)
+	case $name in
+	bd71815 | bd71827 | bd71828 | ricoh619 | rc5t619) ;;
+	*) continue ;;
+	esac
+	drv=$(readlink -f "$d/driver")
+	drv=${drv##*/}
+	echo "Power chip: $name (I2C ${d##*/}, driver ${drv:-none})"
+	chip=1
+done
+[ -n "$chip" ] || echo "Power chip: none known (see i2c devices)"
+for s in /sys/class/power_supply/*; do
+	[ "$(cat "$s/type" 2>/dev/null)" = Battery ] || continue
+	drv=$(readlink -f "$s/device/driver")
+	drv=${drv##*/}
+	if [ -e "$s/charging" ]; then sw=yes; else sw=no; fi
+	echo "Battery: ${s##*/} (driver ${drv:-none}, charging switch: $sw)"
+done
 
 section "device"
 device_info
@@ -38,10 +58,8 @@ done
 # Direct register access needs these.
 echo "dev nodes: $(ls /dev/i2c-* 2>&1 | tr '\n' ' ')"
 
-# Every attribute of a sysfs directory, marked [w] if writable, so an unknown
-# driver's controls show up. Values are kept long enough for the BD7182x
-# driver's "register" file, a dump of all the chip's registers. Root passes
-# `test -w` on everything, so writability comes from the mode bits.
+# A directory's attributes, [w] if writable (from the mode: root passes
+# test -w). 4 KiB fits the BD7182x driver's register dump.
 attrs() {
 	for f in "$1"/*; do
 		[ -f "$f" ] || continue
@@ -60,8 +78,7 @@ for s in /sys/class/power_supply/*; do
 	attrs "$s"
 done
 
-# Some drivers put their controls on the device instead of the supply. A
-# chip's supplies share one device, so list each device once.
+# Some drivers put their controls on the device; list each one once.
 section "power supply devices"
 seen=
 for s in /sys/class/power_supply/*; do
@@ -74,8 +91,6 @@ for s in /sys/class/power_supply/*; do
 	attrs "$d"
 done
 
-# Names the charger, battery and PMIC drivers, which points to the right
-# datasheet or kernel source for a chip we don't know.
 section "drivers"
 echo "modules: $(cut -d' ' -f1 /proc/modules 2>/dev/null | tr '\n' ' ')"
 if [ -r /proc/config.gz ]; then
