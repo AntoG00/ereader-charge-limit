@@ -44,6 +44,7 @@ This tool has been tested on Kobo and Kindle devices:
 |---|---|---|---|
 | Kobo Sage | ROHM BD71828 | `bd71827-power` | Tested (firmware 4.38) |
 | Kindle Paperwhite 11th gen | ROHM BD71828 | `bd71827-power` | Tested (firmware 5.19.2, jailbroken) |
+| Kindle Paperwhite 7th gen | Maxim MAX77696 | `max77696-charger` | Tested (firmware 5.14.2, jailbroken) |
 
 The driver is named after the BD71828's sibling, the BD71827, and so are its battery files (`bd71827_bat`). **Charge diagnostics** shows both the power chip and its driver.
 
