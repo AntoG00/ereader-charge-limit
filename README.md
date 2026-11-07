@@ -45,6 +45,7 @@ This tool has been tested on Kobo and Kindle devices:
 | Kobo Sage | ROHM BD71828 | `bd71827-power` | Tested (firmware 4.38) |
 | Kindle Paperwhite 11th gen | ROHM BD71828 | `bd71827-power` | Tested (firmware 5.19.2, jailbroken) |
 | Kindle Paperwhite 7th gen | Maxim MAX77696 | `max77696-charger` | Tested (firmware 5.14.2, jailbroken) |
+| Kindle Scribe | TI BQ25611D | `bq256xx-charger` | Tested (firmware 5.19.5, jailbroken) |
 
 The driver is named after the BD71828's sibling, the BD71827, and so are its battery files (`bd71827_bat`). **Charge diagnostics** shows both the power chip and its driver.
 
@@ -138,7 +139,7 @@ With NickelMenu, its items show the current setting and what a tap does:
 
 ### On a Kindle
 
-Open **Charge Limit** from the library. The app shows the charging status at the top, with buttons for the same settings as the Kobo's menu.
+Open **Charge Limit** from the library. Tap **Off** to turn off the limit, or tap **70%**, **80%**, or **90%** to turn it on at that percentage. Under **Charge limit at startup**, choose whether the limit turns on or off at the next boot. The selected option in each row has white text on a black background.
 
 ### The settings file
 

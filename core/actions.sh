@@ -1,9 +1,6 @@
 #!/bin/sh
-# The menu's actions, in plain language: status, toggle, limit, start, full,
-# activity, diagnose (the guided report, support.sh, on a reader we can't
-# control), uninstall; progress (of that report), menu (rewrite the menu)
-# and labels (for the Kindle app's buttons). Always exits 0: NickelMenu
-# shows an error box instead of the output otherwise.
+# The menu and Kindle app actions. Always exits 0: NickelMenu shows an error
+# box instead of the output otherwise.
 
 DIR=$(cd "$(dirname "$0")" && pwd)
 ACTIVITY=/tmp/chargelimit-activity.log
@@ -66,23 +63,34 @@ status() {
 	fi
 }
 
-toggle() {
-	set_setting ENABLED $((1 - ENABLED))
-	# A pending full charge would otherwise come back with the limit.
-	[ "$ENABLED" = 0 ] && [ "$FULL_CHARGE" = 1 ] && set_setting FULL_CHARGE 0
+set_enabled() {
+	if [ "$1" = 0 ]; then
+		# A pending full charge would otherwise come back with the limit.
+		set -- "$1" FULL_CHARGE 0
+	fi
+	if ! set_setting ENABLED "$@"; then
+		echo "Couldn't save the charge limit setting."
+		return
+	fi
 	limit_line
 	apply
 }
 
 limit() {
-	set_setting LIMIT "$(next_limit)"
+	if ! set_setting LIMIT "$@"; then
+		echo "Couldn't save the charge limit setting."
+		return
+	fi
 	echo "Limit set to $LIMIT%: charging stops at $LIMIT% and resumes at $RESUME%."
 	[ "$ENABLED" = 1 ] || echo "The charge limit is off; turn it on to use it."
 	apply
 }
 
 start() {
-	set_setting START $((1 - START))
+	if ! set_setting START "$1"; then
+		echo "Couldn't save the restart setting."
+		return
+	fi
 	if [ "$START" = 1 ]; then
 		echo "From the next restart, the charge limit turns on whenever the reader starts."
 	else
@@ -109,9 +117,13 @@ full() {
 
 case "$1" in
 status) status ;;
-toggle) toggle ;;
-limit) limit ;;
-start) start ;;
+toggle) set_enabled "$((1 - ENABLED))" ;;
+limit) limit "$(next_limit)" ;;
+limit-off) set_enabled 0 ;;
+limit-70 | limit-80 | limit-90) limit "${1#limit-}" ENABLED 1 ;;
+start) start "$((1 - START))" ;;
+start-on) start 1 ;;
+start-off) start 0 ;;
 full) full ;;
 activity)
 	if [ -s "$ACTIVITY" ]; then
@@ -140,9 +152,15 @@ diagnose)
 progress) sh "$DIR/support.sh" progress ;;
 menu) refresh_menu ;;
 labels)
+	echo "limit_value=$LIMIT"
+	echo "enabled_value=$ENABLED"
+	echo "start_value=$START"
 	for key in toggle limit start full; do
 		echo "$key=$(label "$key")"
 	done
+	# The Kindle renders the buttons and status from the same settings read.
+	echo
+	status
 	;;
 uninstall)
 	set_setting UNINSTALL 1

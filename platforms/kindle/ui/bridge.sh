@@ -5,7 +5,8 @@
 #
 #   state      installed, current (install.sh --check), supported, version
 #   install    install.sh
-#   status toggle limit start full activity diagnose progress labels uninstall
+#   status toggle limit limit-off/70/80/90 start start-on/off
+#   full activity diagnose progress labels uninstall
 #              the installed actions.sh; diagnose and progress (of the
 #              guided report on an unsupported Kindle) also before installing
 #
@@ -58,7 +59,8 @@ install)
 	reply "200 OK"
 	sh "$PKG/install.sh" 2>&1
 	;;
-status | toggle | limit | start | full | activity | diagnose | progress | labels | uninstall)
+status | toggle | limit | limit-off | limit-70 | limit-80 | limit-90 | \
+start | start-on | start-off | full | activity | diagnose | progress | labels | uninstall)
 	reply "200 OK"
 	if [ -f "$INSTALL_DIR/actions.sh" ]; then
 		"$INSTALL_DIR/actions.sh" "$action" 2>&1

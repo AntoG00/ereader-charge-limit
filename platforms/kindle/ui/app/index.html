@@ -10,6 +10,7 @@
     <style>
         body { font-family: sans-serif; margin: 0.8rem 1.2rem; background: #fff; color: #000; }
         h1 { font-size: 1.4rem; margin: 0 0 0.6rem 0; }
+        h2 { font-size: 1rem; margin: 0 0 0.3rem 0; }
         /* Text, not a button: grey and borderless. */
         .info { font-size: 1rem; line-height: 1.35; background: #e4e4e4; padding: 0.6rem 0.8rem;
                 margin: 0 0 0.8rem 0; white-space: pre-wrap; }
@@ -17,6 +18,12 @@
                  background: #fff; color: #000; border: 2px solid #000; }
         button.secondary { font-size: 1rem; padding: 0.45rem; border-width: 1px; }
         button:disabled { color: #888; border-color: #aaa; }
+        /* Fixed table cells share the available width without wrapping on Mesquite. */
+        .choices { display: table; table-layout: fixed; width: 100%; }
+        .choices > div { display: table-cell; vertical-align: top; }
+        .choices .choice-gap { width: 2%; }
+        .choices button { -webkit-box-sizing: border-box; box-sizing: border-box; -webkit-appearance: none; }
+        .choices button[aria-pressed="true"] { background: #000; color: #fff; }
         .gap { height: 0.5rem; }
         .small { font-size: 0.8rem; color: #444; margin: 0.6rem 0 0 0; }
     </style>
@@ -26,9 +33,30 @@
     <button id="install" disabled>Checking...</button>
     <div id="info" class="info">Loading...</div>
 
-    <button data-action="toggle" disabled>Limit on or off</button>
-    <button data-action="limit" disabled>Change the limit</button>
-    <button data-action="start" disabled>At restart</button>
+    <div id="direct-settings">
+        <h2 id="limit-heading">Charge Limit</h2>
+        <div id="limit-options" class="choices" role="group" aria-labelledby="limit-heading">
+            <div><button data-action="limit-off" aria-pressed="false" disabled>Off</button></div>
+            <div class="choice-gap" aria-hidden="true"></div>
+            <div><button data-action="limit-70" aria-pressed="false" disabled>70%</button></div>
+            <div class="choice-gap" aria-hidden="true"></div>
+            <div><button data-action="limit-80" aria-pressed="false" disabled>80%</button></div>
+            <div class="choice-gap" aria-hidden="true"></div>
+            <div><button data-action="limit-90" aria-pressed="false" disabled>90%</button></div>
+        </div>
+
+        <h2 id="restart-heading">Charge limit at startup</h2>
+        <div id="restart-options" class="choices" role="group" aria-labelledby="restart-heading">
+            <div><button data-action="start-on" aria-pressed="false" disabled>On</button></div>
+            <div class="choice-gap" aria-hidden="true"></div>
+            <div><button data-action="start-off" aria-pressed="false" disabled>Off</button></div>
+        </div>
+    </div>
+    <div id="legacy-settings" style="display: none">
+        <button data-action="toggle" disabled>Limit on or off</button>
+        <button data-action="limit" disabled>Change the limit</button>
+        <button data-action="start" disabled>At restart</button>
+    </div>
     <button data-action="full" disabled>Full charge once</button>
     <div class="gap"></div>
     <button class="secondary" data-action="activity" disabled>Charge activity</button>

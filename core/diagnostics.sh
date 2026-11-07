@@ -48,6 +48,10 @@ done
 w=/sys/devices/system/wario_charger/wario_charger0
 [ -e "$w/mode" ] &&
 	echo "Charger: wario_charger0 (mode $(cat "$w/mode" 2>/dev/null), connected $(cat "$w/connected" 2>/dev/null))"
+bq=/sys/class/power_supply/bq256xx-charger
+if [ "$(cat "$bq/model_name" 2>/dev/null)" = bq25611d ]; then
+	echo "Charger: bq25611d (driver bq256xx-charger, charge enabled: $(cat "$bq/charge_enabled" 2>/dev/null))"
+fi
 
 # Alive, and not stuck: a daemon with SIGCHLD blocked never wakes from its
 # nap (wchan sys_rt_sigsuspend, a zombie sleep).

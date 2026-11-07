@@ -10,6 +10,7 @@
     // The status last shown under it.
     var shown = "";
     var polling = false;
+    var refreshId = 0;
 
     function el(id) { return document.getElementById(id); }
 
@@ -71,11 +72,29 @@
 
     // Only Install and Charge diagnostics work before installing.
     function enable(installed) {
-        var buttons = document.querySelectorAll("button[data-action]");
+        var buttons = document.querySelectorAll("button[data-action]:not([aria-pressed])");
         for (var i = 0; i < buttons.length; i++) {
             buttons[i].disabled = !installed && buttons[i].getAttribute("data-action") !== "diagnose";
         }
         el("uninstall").disabled = !installed;
+    }
+
+    function showChoices(id, action, available) {
+        var buttons = el(id).querySelectorAll("button");
+        for (var i = 0; i < buttons.length; i++) {
+            buttons[i].disabled = !available;
+            buttons[i].setAttribute("aria-pressed", String(available && buttons[i].getAttribute("data-action") === action));
+        }
+    }
+
+    function showSettings(labels) {
+        var available = !!labels.enabled_value;
+        // Keep the old controls until Install updates an older runtime.
+        var legacy = !available && labels.limit;
+        el("direct-settings").style.display = legacy ? "none" : "";
+        el("legacy-settings").style.display = legacy ? "" : "none";
+        showChoices("limit-options", "limit-" + (labels.enabled_value === "0" ? "off" : labels.limit_value), available);
+        showChoices("restart-options", labels.start_value === "1" ? "start-on" : "start-off", available);
     }
 
     // While the guided report runs (Charge diagnostics on an unsupported
@@ -95,7 +114,9 @@
     }
 
     function refresh() {
+        var id = ++refreshId;
         call("state", function (text, err) {
+            if (id !== refreshId) return;
             var install = el("install");
             if (err) {
                 showInfo(problem(err));
@@ -110,6 +131,7 @@
             enable(installed);
             setText(el("version"), "Charge Limit " + state.version);
             if (!installed) {
+                showSettings({});
                 showInfo(supported ?
                     "This Kindle is supported, and Charge Limit isn't installed yet.\n" +
                     "Install adds the charge limiter, which then starts by itself with the Kindle." :
@@ -119,15 +141,26 @@
                 return;
             }
             var note = current ? "" : "Tap Install to update Charge Limit or repair its start at boot.\n\n";
-            call("status", function (text, err) {
-                showInfo(note + (err ? problem(err) : text));
-            });
             call("labels", function (text, err) {
-                if (err) return;
-                var labels = parse(text);
+                if (id !== refreshId) return;
+                if (err) {
+                    showInfo(note + problem(err));
+                    return;
+                }
+                var split = text.indexOf("\n\n");
+                var labels = parse(split < 0 ? text : text.substring(0, split));
+                showSettings(labels);
                 for (var key in labels) {
                     var button = document.querySelector('button[data-action="' + key + '"]');
                     if (button) setText(button, labels[key]);
+                }
+                if (split >= 0) {
+                    showInfo(note + text.substring(split + 2));
+                } else {
+                    // Older installed versions return only labels here.
+                    call("status", function (text, err) {
+                        if (id === refreshId) showInfo(note + (err ? problem(err) : text));
+                    });
                 }
             });
         });
@@ -136,6 +169,7 @@
     function run(action, waiting) {
         if (busy) return;
         busy = true;
+        refreshId++;
         message = "";
         showInfo(waiting || "...");
         call(action, function (text, err) {
