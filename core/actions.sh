@@ -64,11 +64,8 @@ status() {
 }
 
 set_enabled() {
-	if [ "$1" = 0 ]; then
-		# A pending full charge would otherwise come back with the limit.
-		set -- "$1" FULL_CHARGE 0
-	fi
-	if ! set_setting ENABLED "$@"; then
+	# A pending full charge would otherwise come back with the limit.
+	if ! set_setting ENABLED "$1" || { [ "$1" = 0 ] && ! set_setting FULL_CHARGE 0; }; then
 		echo "Couldn't save the charge limit setting."
 		return
 	fi
@@ -77,7 +74,7 @@ set_enabled() {
 }
 
 limit() {
-	if ! set_setting LIMIT "$@"; then
+	if ! set_setting LIMIT "$1" || { [ "${2-}" = enable ] && ! set_setting ENABLED 1; }; then
 		echo "Couldn't save the charge limit setting."
 		return
 	fi
@@ -120,7 +117,7 @@ status) status ;;
 toggle) set_enabled "$((1 - ENABLED))" ;;
 limit) limit "$(next_limit)" ;;
 limit-off) set_enabled 0 ;;
-limit-70 | limit-80 | limit-90) limit "${1#limit-}" ENABLED 1 ;;
+limit-70 | limit-80 | limit-90) limit "${1#limit-}" enable ;;
 start) start "$((1 - START))" ;;
 start-on) start 1 ;;
 start-off) start 0 ;;
@@ -158,9 +155,6 @@ labels)
 	for key in toggle limit start full; do
 		echo "$key=$(label "$key")"
 	done
-	# The Kindle renders the buttons and status from the same settings read.
-	echo
-	status
 	;;
 uninstall)
 	set_setting UNINSTALL 1

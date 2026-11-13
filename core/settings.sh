@@ -47,26 +47,21 @@ label() {
 	esac
 }
 
-# Change one or two settings together, keeping the config's comments.
+# Change one setting, keeping the config's comments.
 set_setting() {
 	storage_ready || return 1
 	mkdir -p "${CONFIG%/*}" || return 1
 	local source=$CONFIG updated=$CONFIG.tmp.$$
 	[ -f "$source" ] || source=/dev/null
 	# Write beside the config so the daemon reads either the old or new file.
-	if ! awk -v key="$1" -v value="$2" -v other="${3-}" -v other_value="${4-}" '
+	if ! awk -v key="$1" -v value="$2" '
 		index($0, key "=") == 1 { $0 = key "=" value; found = 1 }
-		other != "" && index($0, other "=") == 1 { $0 = other "=" other_value; other_found = 1 }
 		{ print }
-		END {
-			if (!found) print key "=" value
-			if (other != "" && !other_found) print other "=" other_value
-		}
+		END { if (!found) print key "=" value }
 	' "$source" > "$updated" || ! mv -f "$updated" "$CONFIG"; then
 		rm -f "$updated"
 		return 1
 	fi
 	eval "$1=\$2"
-	[ -z "${3-}" ] || eval "$3=\$4"
 	RESUME=$((LIMIT - 5))
 }

@@ -79,22 +79,16 @@
         el("uninstall").disabled = !installed;
     }
 
-    function showChoices(id, action, available) {
-        var buttons = el(id).querySelectorAll("button");
-        for (var i = 0; i < buttons.length; i++) {
-            buttons[i].disabled = !available;
-            buttons[i].setAttribute("aria-pressed", String(available && buttons[i].getAttribute("data-action") === action));
-        }
-    }
-
     function showSettings(labels) {
         var available = !!labels.enabled_value;
-        // Keep the old controls until Install updates an older runtime.
-        var legacy = !available && labels.limit;
-        el("direct-settings").style.display = legacy ? "none" : "";
-        el("legacy-settings").style.display = legacy ? "" : "none";
-        showChoices("limit-options", "limit-" + (labels.enabled_value === "0" ? "off" : labels.limit_value), available);
-        showChoices("restart-options", labels.start_value === "1" ? "start-on" : "start-off", available);
+        var limit = "limit-" + (labels.enabled_value === "0" ? "off" : labels.limit_value);
+        var restart = labels.start_value === "1" ? "start-on" : "start-off";
+        var buttons = document.querySelectorAll("button[aria-pressed]");
+        for (var i = 0; i < buttons.length; i++) {
+            var action = buttons[i].getAttribute("data-action");
+            buttons[i].disabled = !available;
+            buttons[i].setAttribute("aria-pressed", String(available && (action === limit || action === restart)));
+        }
     }
 
     // While the guided report runs (Charge diagnostics on an unsupported
@@ -141,27 +135,14 @@
                 return;
             }
             var note = current ? "" : "Tap Install to update Charge Limit or repair its start at boot.\n\n";
+            call("status", function (text, err) {
+                if (id === refreshId) showInfo(note + (err ? problem(err) : text));
+            });
             call("labels", function (text, err) {
-                if (id !== refreshId) return;
-                if (err) {
-                    showInfo(note + problem(err));
-                    return;
-                }
-                var split = text.indexOf("\n\n");
-                var labels = parse(split < 0 ? text : text.substring(0, split));
+                if (id !== refreshId || err) return;
+                var labels = parse(text);
                 showSettings(labels);
-                for (var key in labels) {
-                    var button = document.querySelector('button[data-action="' + key + '"]');
-                    if (button) setText(button, labels[key]);
-                }
-                if (split >= 0) {
-                    showInfo(note + text.substring(split + 2));
-                } else {
-                    // Older installed versions return only labels here.
-                    call("status", function (text, err) {
-                        if (id === refreshId) showInfo(note + (err ? problem(err) : text));
-                    });
-                }
+                if (labels.full) setText(document.querySelector('button[data-action="full"]'), labels.full);
             });
         });
     }

@@ -7,7 +7,7 @@
  *   chargectl off     stop charging; the reader runs from USB
  *
  * Methods:
- *   bq25611d  the separate TI charger's "charge_enabled" file (Kindle Scribe)
+ *   bq256xx   the separate TI charger's "charge_enabled" file (Kindle Scribe)
  *   sysfs     the battery's "charging" file (the BD7182x driver,
  *             bd71827-power, on Kobos and Kindles)
  *   wario     the MAX77696 charger's controls in Lab126's sysdev (Kindle
@@ -54,7 +54,7 @@
  * snprintf never truncates. */
 #define SUPPLY_DIR_LEN (sizeof(SUPPLIES) + 1 + 255)
 #define SUPPLY_PATH_LEN (SUPPLY_DIR_LEN + 16)
-#define BQ25611D SUPPLIES "/bq256xx-charger"
+#define BQ_CHARGE_ENABLED SUPPLIES "/bq256xx-charger/charge_enabled"
 #define WARIO "/sys/devices/system/wario_charger/wario_charger0"
 #define WARIO_MODE_ON "5"
 #define WARIO_MODE_OFF "4"
@@ -86,7 +86,7 @@ static char battery[SUPPLY_DIR_LEN];	/* battery power_supply dir, "" if none */
 static char charging_attr[SUPPLY_PATH_LEN];	/* its "charging" file, "" if none */
 static int plugged;		/* another power_supply online, or MAX77696 connected */
 static int milli_units;		/* the battery reports mV and mA, not uV and uA */
-static int bq25611d;		/* the separate TI charger supplies the battery */
+static int bq256xx;		/* the separate TI charger supplies the battery */
 static int wario;		/* the MAX77696 charger's sysdev is there */
 
 static uint8_t reg_banksel = REG_BANKSEL;
@@ -209,8 +209,8 @@ static const char *method(void)
 {
 	if (!battery[0])
 		return "none";
-	if (bq25611d)
-		return "bq25611d";
+	if (bq256xx)
+		return "bq256xx";
 	if (charging_attr[0])
 		return "sysfs";
 	if (wario)
@@ -336,23 +336,13 @@ static int read_bq_charge_enabled(void)
 {
 	char val[8];
 
-	if (read_line(BQ25611D "/charge_enabled", val, sizeof(val)) == 0) {
+	if (read_line(BQ_CHARGE_ENABLED, val, sizeof(val)) == 0) {
 		if (strcmp(val, "1") == 0)
 			return 1;
 		if (strcmp(val, "0") == 0)
 			return 0;
 	}
-	fprintf(stderr, "could not read " BQ25611D "/charge_enabled\n");
-	return -1;
-}
-
-static int set_bq_charging(int enable)
-{
-	if (write_attr(BQ25611D "/charge_enabled", enable ? "1" : "0") < 0)
-		return -1;
-	if (read_bq_charge_enabled() == enable)
-		return 0;
-	fprintf(stderr, BQ25611D "/charge_enabled did not take effect\n");
+	fprintf(stderr, "could not read " BQ_CHARGE_ENABLED "\n");
 	return -1;
 }
 
@@ -376,8 +366,14 @@ static int set_wario(int enable)
  */
 static int set_charging(int enable)
 {
-	if (bq25611d)
-		return set_bq_charging(enable);
+	if (bq256xx) {
+		if (write_attr(BQ_CHARGE_ENABLED, enable ? "1" : "0") < 0)
+			return -1;
+		if (read_bq_charge_enabled() == enable)
+			return 0;
+		fprintf(stderr, BQ_CHARGE_ENABLED " did not take effect\n");
+		return -1;
+	}
 	if (strcmp(method(), "wario") == 0)
 		return set_wario(enable);
 	if (charging_attr[0]) {
@@ -459,7 +455,7 @@ static int print_status(void)
 		if (read_line(path, val, sizeof(val)) == 0)
 			print_micro("current_ua", val);
 	}
-	if (bq25611d) {
+	if (bq256xx) {
 		enabled = read_bq_charge_enabled();
 	} else if (pmic) {
 		uint8_t ctl, dcin, state;
@@ -495,11 +491,9 @@ int main(int argc, char **argv)
 		return 2;
 	}
 	find_supplies();
-	char model[32];
-	bq25611d = read_line(BQ25611D "/model_name", model, sizeof(model)) == 0 &&
-		    strcmp(model, "bq25611d") == 0;
+	bq256xx = access(BQ_CHARGE_ENABLED, F_OK) == 0;
 	/* With a separate charger, the ROHM charge bit cannot stop charging. */
-	if (!bq25611d) {
+	if (!bq256xx) {
 		find_wario();
 		open_pmic();
 	}
